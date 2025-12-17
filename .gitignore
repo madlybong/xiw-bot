@@ -1,0 +1,13 @@
+node_modules
+dist
+.env
+.DS_Store
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+bin/bot-server
+bin/bot-server.exe
+src/server/assets.gen.ts
+src/ui/dist
+*.bun-build
+*.exe

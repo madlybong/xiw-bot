@@ -1,0 +1,98 @@
+import makeWASocket, { DisconnectReason, useMultiFileAuthState, type ConnectionState } from '@whiskeysockets/baileys';
+import { useSQLiteAuthState } from './wa-auth';
+import db from './db';
+import { pino } from 'pino';
+
+// In-memory store for active sessions
+interface SessionData {
+    socket: ReturnType<typeof makeWASocket> | null;
+    qr: string | null;
+    status: 'connecting' | 'connected' | 'disconnected';
+    lastConnectionUpdate?: ConnectionState;
+}
+
+const sessions = new Map<string, SessionData>();
+
+export const waManager = {
+    getSession: (id: string) => sessions.get(id),
+
+    startSession: async (id: string) => {
+        if (sessions.has(id)) {
+            const s = sessions.get(id)!;
+            if (s.status === 'connected') return s;
+        }
+
+        const { state, saveCreds } = await useSQLiteAuthState(id);
+
+        const sock = makeWASocket({
+            auth: state,
+            printQRInTerminal: false,
+            logger: pino({ level: 'debug' }) as any,
+            browser: ['Ubuntu', 'Chrome', '20.0.04']
+        });
+
+        const sessionData: SessionData = {
+            socket: sock,
+            qr: null,
+            status: 'connecting'
+        };
+        sessions.set(id, sessionData);
+
+        sock.ev.on('creds.update', saveCreds);
+
+        sock.ev.on('connection.update', (update) => {
+            const { connection, lastDisconnect, qr } = update;
+            sessionData.lastConnectionUpdate = update;
+
+            if (qr) {
+                sessionData.qr = qr;
+                sessionData.status = 'connecting';
+                console.log(`[WA:${id}] QR Code generated`);
+            }
+
+            if (connection === 'close') {
+                const shouldReconnect = (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
+                console.log(`[WA:${id}] Connection closed due to ${lastDisconnect?.error}, reconnecting: ${shouldReconnect}`);
+
+                sessionData.status = 'disconnected';
+                sessionData.qr = null;
+
+                if (shouldReconnect) {
+                    // Add a delay to prevent tight loops
+                    setTimeout(() => {
+                        waManager.startSession(id).catch(e => console.error(`[WA:${id}] Reconnect failed:`, e));
+                    }, 3000); // 3s delay
+                } else {
+                    // Documented logout
+                    sessions.delete(id);
+                    db.query('UPDATE whatsapp_sessions SET status = $status WHERE id = $id').run({ $status: 'disconnected', $id: id });
+                }
+            } else if (connection === 'open') {
+                console.log(`[WA:${id}] Connected`);
+                sessionData.status = 'connected';
+                sessionData.qr = null;
+                db.query('UPDATE instances SET status = $status WHERE id = $id').run({ $status: 'running', $id: id });
+            }
+        });
+
+        return sessionData;
+    },
+
+    deleteSession: async (id: string) => {
+        const session = sessions.get(id);
+        if (session?.socket) {
+            session.socket.end(undefined);
+        }
+        sessions.delete(id);
+        // Clean DB? Maybe keep data but mark stopped?
+        // For now, simple stop.
+        db.query('DELETE FROM whatsapp_sessions WHERE id = $id').run({ $id: id });
+    },
+    formatJid: (number: string) => {
+        if (!number) return '';
+        if (number.includes('@s.whatsapp.net') || number.includes('@g.us')) return number;
+        // Strip non-numeric chars
+        const sanitized = number.replace(/\D/g, '');
+        return `${sanitized}@s.whatsapp.net`;
+    }
+};
