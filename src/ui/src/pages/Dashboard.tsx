@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, Play, Square, Settings, LogOut } from 'lucide-react';
+import { Plus, Trash2, Settings, Power, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import WhatsAppManager from '../components/WhatsAppManager';
 import TokenManager from '../components/TokenManager';
@@ -14,7 +14,6 @@ interface Account {
 
 const Dashboard = () => {
     const [accounts, setAccounts] = useState<Account[]>([]);
-    const [showAddModal, setShowAddModal] = useState(false);
     const [newAccountName, setNewAccountName] = useState('');
     const navigate = useNavigate();
 
@@ -26,14 +25,10 @@ const Dashboard = () => {
             if (res.status === 401) navigate('/login');
             const data = await res.json();
             setAccounts(data.accounts || []);
-        } catch (e) {
-            console.error(e);
-        }
+        } catch (e) { console.error(e); }
     };
 
-    useEffect(() => {
-        fetchAccounts();
-    }, []);
+    useEffect(() => { fetchAccounts(); }, []);
 
     const handleAddAccount = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -46,7 +41,9 @@ const Dashboard = () => {
                 },
                 body: JSON.stringify({ name: newAccountName, config: '{}' })
             });
-            setShowAddModal(false);
+            // Close modal using checkbox hack or dialog method if using native dialog
+            // DaisyUI recommends input toggle or dialog
+            (document.getElementById('modal_add_account') as HTMLDialogElement).close();
             setNewAccountName('');
             fetchAccounts();
         } catch (e) {
@@ -63,121 +60,112 @@ const Dashboard = () => {
         fetchAccounts();
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem('token');
-        navigate('/login');
-    };
-
     return (
-        <div className="fade-in" style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+        <div className="space-y-8 fade-in">
+            {/* Header / Stats Section (Placeholder for future stats) */}
+            <div className="flex justify-between items-end">
                 <div>
-                    <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>Dashboard</h1>
-                    <p style={{ color: 'var(--text-sub)' }}>Manage your bot instances</p>
+                    <h2 className="text-3xl font-bold">Dashboard</h2>
+                    <p className="opacity-70">Manage your WhatsApp Instances</p>
                 </div>
-                <div style={{ display: 'flex', gap: '1.5rem' }}>
-                    <button onClick={() => navigate('/docs')} style={{ background: 'transparent', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ borderBottom: '1px solid var(--accent)' }}>API Docs</span>
-                    </button>
-                    <button onClick={handleLogout} style={{ background: 'transparent', color: 'var(--text-sub)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <LogOut size={18} /> Logout
-                    </button>
-                </div>
-            </header>
+                {/* <div className="stats shadow">
+                  <div className="stat">
+                    <div className="stat-title">Total Accounts</div>
+                    <div className="stat-value">{accounts.length}</div>
+                  </div>
+                </div> */}
+            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+            {/* Grid of Accounts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Add New Card */}
-                <button
-                    onClick={() => setShowAddModal(true)}
-                    className="glass-panel"
-                    style={{
-                        height: '200px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--text-sub)',
-                        transition: 'var(--transition)',
-                        border: '2px dashed rgba(255,255,255,0.1)'
-                    }}
+                <div
+                    onClick={() => (document.getElementById('modal_add_account') as HTMLDialogElement).showModal()}
+                    className="card bg-base-100 shadow-xl border-2 border-dashed border-base-300 hover:border-primary cursor-pointer transition-colors h-full min-h-[300px] flex items-center justify-center group"
                 >
-                    <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '50%', marginBottom: '1rem' }}>
-                        <Plus size={32} />
+                    <div className="flex flex-col items-center gap-2 group-hover:text-primary transition-colors">
+                        <div className="p-4 bg-base-200 rounded-full group-hover:bg-primary/10">
+                            <Plus size={32} />
+                        </div>
+                        <span className="font-semibold">Add New Instance</span>
                     </div>
-                    <span>Add New Account</span>
-                </button>
+                </div>
 
                 {accounts.map(acc => (
-                    <div key={acc.id} className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '200px' }}>
-                        <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                                <h3 style={{ fontSize: '1.25rem', fontWeight: '600' }}>{acc.name}</h3>
-                                <div style={{
-                                    padding: '0.25rem 0.75rem',
-                                    borderRadius: '99px',
-                                    fontSize: '0.75rem',
-                                    background: acc.status === 'running' ? 'rgba(44, 182, 125, 0.1)' : 'rgba(148, 161, 178, 0.1)',
-                                    color: acc.status === 'running' ? 'var(--success)' : 'var(--text-sub)'
-                                }}>
+                    <div key={acc.id} className="card bg-base-100 shadow-xl">
+                        <div className="card-body p-6">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 className="card-title text-xl">{acc.name}</h3>
+                                    <div className="badge badge-sm mt-1 opacity-70">ID: {acc.id}</div>
+                                </div>
+                                <div className={`badge ${acc.status === 'running' ? 'badge-success gap-2' : 'badge-ghost gap-2'}`}>
+                                    {acc.status === 'running' ? <Activity size={12} /> : <Power size={12} />}
                                     {acc.status}
                                 </div>
                             </div>
-                            <p style={{ color: 'var(--text-sub)', fontSize: '0.875rem' }}>ID: {acc.id}</p>
-                        </div>
 
-                        <WhatsAppManager accountId={acc.id} />
+                            {/* Instance Manager Component Logic would go here or be passed down */}
+                            <div className="flex-grow">
+                                <WhatsAppManager accountId={acc.id} />
+                            </div>
 
-                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
-                            <button style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', display: 'flex', justifyContent: 'center' }}>
-                                <Settings size={18} />
-                            </button>
-                            <button onClick={() => handleDelete(acc.id)} style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', background: 'rgba(239, 69, 101, 0.1)', color: 'var(--error)', display: 'flex', justifyContent: 'center' }}>
-                                <Trash2 size={18} />
-                            </button>
-                            <button style={{
-                                flex: 2,
-                                padding: '0.5rem',
-                                borderRadius: '6px',
-                                background: acc.status === 'running' ? 'rgba(239, 69, 101, 0.1)' : 'rgba(44, 182, 125, 0.1)',
-                                color: acc.status === 'running' ? 'var(--error)' : 'var(--success)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '0.5rem',
-                                fontWeight: '600'
-                            }}>
-                                {acc.status === 'running' ? <><Square size={16} fill="currentColor" /> Stop</> : <><Play size={16} fill="currentColor" /> Start</>}
-                            </button>
+                            <div className="card-actions justify-end mt-4 pt-4 border-t border-base-200">
+                                <button className="btn btn-sm btn-ghost btn-square" title="Settings">
+                                    <Settings size={18} />
+                                </button>
+                                <button onClick={() => handleDelete(acc.id)} className="btn btn-sm btn-ghost btn-square text-error" title="Delete">
+                                    <Trash2 size={18} />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 ))}
             </div>
 
-            <TokenManager />
+            <div className="divider"></div>
 
-            <UserManager />
+            {/* Token & User Management Sections using Tabs or just vertical Layout? Vertical for now. */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="col-span-1">
+                    <TokenManager />
+                </div>
+                <div className="col-span-1">
+                    <UserManager />
+                </div>
+            </div>
 
-            {showAddModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-                    <div className="glass-panel fade-in" style={{ width: '400px', padding: '2rem', background: '#16161a' }}>
-                        <h3 style={{ marginBottom: '1.5rem', fontSize: '1.5rem' }}>Add Account</h3>
-                        <form onSubmit={handleAddAccount}>
+            {/* Modal */}
+            <dialog id="modal_add_account" className="modal">
+                <div className="modal-box">
+                    <h3 className="font-bold text-lg">Add New Instance</h3>
+                    <form onSubmit={handleAddAccount} className="py-4">
+                        <div className="form-control w-full">
+                            <label className="label">
+                                <span className="label-text">Instance Name</span>
+                            </label>
                             <input
-                                autoFocus
-                                className="input-field"
-                                placeholder="Account Name"
+                                type="text"
+                                placeholder="e.g. Sales Bot"
+                                className="input input-bordered w-full"
                                 value={newAccountName}
                                 onChange={e => setNewAccountName(e.target.value)}
-                                style={{ marginBottom: '1.5rem' }}
+                                autoFocus
                             />
-                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                                <button type="button" onClick={() => setShowAddModal(false)} style={{ color: 'var(--text-sub)', background: 'transparent' }}>Cancel</button>
-                                <button type="submit" className="btn-primary">Create</button>
-                            </div>
-                        </form>
-                    </div>
+                        </div>
+                        <div className="modal-action">
+                            <form method="dialog">
+                                {/* if there is a button in form, it will close the modal */}
+                                <button className="btn btn-ghost mr-2">Cancel</button>
+                            </form>
+                            <button className="btn btn-primary" onClick={handleAddAccount}>Create</button>
+                        </div>
+                    </form>
                 </div>
-            )}
+                <form method="dialog" className="modal-backdrop">
+                    <button>close</button>
+                </form>
+            </dialog>
         </div>
     );
 };

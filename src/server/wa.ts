@@ -9,6 +9,7 @@ interface SessionData {
     qr: string | null;
     status: 'connecting' | 'connected' | 'disconnected';
     lastConnectionUpdate?: ConnectionState;
+    user?: { name?: string; id: string };
 }
 
 const sessions = new Map<string, SessionData>();
@@ -51,11 +52,14 @@ export const waManager = {
             }
 
             if (connection === 'close') {
-                const shouldReconnect = (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
-                console.log(`[WA:${id}] Connection closed due to ${lastDisconnect?.error}, reconnecting: ${shouldReconnect}`);
+                const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut && statusCode !== 401; // 401 often means session invalid
+
+                console.log(`[WA:${id}] Connection closed. Status: ${statusCode}, Error: ${lastDisconnect?.error}, Reconnecting: ${shouldReconnect}`);
 
                 sessionData.status = 'disconnected';
                 sessionData.qr = null;
+                sessionData.user = undefined;
 
                 if (shouldReconnect) {
                     // Add a delay to prevent tight loops
@@ -63,14 +67,22 @@ export const waManager = {
                         waManager.startSession(id).catch(e => console.error(`[WA:${id}] Reconnect failed:`, e));
                     }, 3000); // 3s delay
                 } else {
-                    // Documented logout
+                    // Documented logout or invalid session
+                    console.log(`[WA:${id}] Session expired or logged out. Cleaning up...`);
                     sessions.delete(id);
-                    db.query('UPDATE whatsapp_sessions SET status = $status WHERE id = $id').run({ $status: 'disconnected', $id: id });
+                    // CRITICAL: Delete the stale session data so next start generates a new QR
+                    db.query('DELETE FROM whatsapp_sessions WHERE id = $id').run({ $id: id });
+                    db.query('UPDATE instances SET status = $status WHERE id = $id').run({ $status: 'disconnected', $id: id });
                 }
             } else if (connection === 'open') {
                 console.log(`[WA:${id}] Connected`);
                 sessionData.status = 'connected';
                 sessionData.qr = null;
+                // Capture user info
+                sessionData.user = {
+                    id: sock.user?.id || '',
+                    name: sock.user?.name || sock.user?.notify || undefined
+                };
                 db.query('UPDATE instances SET status = $status WHERE id = $id').run({ $status: 'running', $id: id });
             }
         });
