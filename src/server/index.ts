@@ -71,7 +71,7 @@ app.use('*', logger());
 import pkg from '../../package.json';
 
 app.get('/api/health', (c) => {
-  return c.json({ status: 'ok', version: pkg.version, db: 'connected' });
+  return c.json({ status: 'ok', version: '0.9.4', db: 'connected' });
 });
 
 app.post('/api/auth/login', async (c) => {

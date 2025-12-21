@@ -1,5 +1,7 @@
 {
-  "version": "0.9.3",
+  "name": "xiw-bot",
+  "version": "0.9.4",
+  "module": "src/server/index.ts",
   "type": "module",
   "private": true,
   "scripts": {

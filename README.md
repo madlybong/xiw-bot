@@ -72,7 +72,7 @@ The built-in Swagger/OpenAPI documentation is available at `/docs` (e.g., `http:
 ## 📦 Versioning
 This project uses semantic versioning. 
 -   **Releases**: Triggered by pushing a tag `vX.Y.Z`.
--   **Current Version**: v0.9.0
+-   **Current Version**: v0.9.4
 
 ## 📄 License
 MIT
