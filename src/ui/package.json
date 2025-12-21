@@ -9,7 +9,7 @@
         "preview": "vite preview"
     },
     "dependencies": {
-        "daisyui": "^5.5.14",
+        "daisyui": "^4.12.10",
         "lucide-react": "^0.468.0",
         "qrcode.react": "^4.2.0",
         "react": "^18.3.1",
