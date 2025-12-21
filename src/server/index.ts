@@ -119,18 +119,57 @@ app.post('/api/users', authMiddleware, async (c) => {
   } catch (e) {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
-  const { username, password, role } = body;
-
-  if (role === 'admin') {
-    return c.json({ error: 'Cannot create admin user via API' }, 403);
-  }
+  const { username, password, role, message_limit, limit_frequency, status } = body;
 
   const hash = Bun.hash(password).toString();
   try {
-    db.query('INSERT INTO users (username, password_hash, role) VALUES ($u, $p, $r)').run({ $u: username, $p: hash, $r: role || 'agent' });
+    db.query('INSERT INTO users (username, password_hash, role, message_limit, limit_frequency, status) VALUES ($u, $p, $r, $ml, $lf, $st)')
+      .run({
+        $u: username,
+        $p: hash,
+        $r: role || 'agent',
+        $ml: message_limit || 1000,
+        $lf: limit_frequency || 'daily',
+        $st: status || 'active'
+      });
     return c.json({ success: true });
   } catch (e) {
-    return c.json({ error: 'Failed' }, 500);
+    return c.json({ error: 'Failed (Username might exist)' }, 500);
+  }
+});
+
+app.put('/api/users/:id', authMiddleware, async (c) => {
+  const payload = c.get('jwtPayload');
+  if (payload.role !== 'admin') return c.json({ error: 'Unauthorized' }, 403);
+  const id = c.req.param('id');
+
+  let body;
+  try { body = await c.req.json(); } catch (e) { return c.json({ error: 'Invalid JSON' }, 400); }
+  const { password, role, message_limit, limit_frequency, status } = body;
+
+  try {
+    if (password) {
+      const hash = Bun.hash(password).toString();
+      db.query('UPDATE users SET password_hash = $p WHERE id = $id').run({ $p: hash, $id: id });
+    }
+
+    db.query(`UPDATE users SET 
+            role = COALESCE($r, role), 
+            message_limit = COALESCE($ml, message_limit), 
+            limit_frequency = COALESCE($lf, limit_frequency),
+            status = COALESCE($st, status)
+            WHERE id = $id`
+    ).run({
+      $r: role,
+      $ml: message_limit,
+      $lf: limit_frequency,
+      $st: status,
+      $id: id
+    });
+
+    return c.json({ success: true });
+  } catch (e) {
+    return c.json({ error: 'Update Failed' }, 500);
   }
 });
 
