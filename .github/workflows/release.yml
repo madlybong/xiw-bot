@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install
+
+      - name: Build UI
+        run: |
+          cd src/ui
+          bun install
+          bun run build
+
+      - name: Embed Assets
+        run: bun src/scripts/embed-assets.ts
+
+      - name: Build Server Binary
+        run: bun build --compile src/server/index.ts --outfile bot-server
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: bot-server
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

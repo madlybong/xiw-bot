@@ -3,13 +3,24 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 // Navbar Logic Inline for now or separate component
-const drawer = ref(false);
+const drawer = ref(true);
 const auth = ref(false);
+const version = ref('');
 const router = useRouter();
 
 const checkAuth = () => {
     auth.value = !!localStorage.getItem('token');
 };
+
+const fetchVersion = async () => {
+   if(auth.value) {
+       try {
+           const res = await fetch('/api/health');
+           const data = await res.json();
+           version.value = data.version;
+       } catch(e) {}
+   }
+}
 
 const logout = () => {
     localStorage.removeItem('token');
@@ -19,6 +30,7 @@ const logout = () => {
 
 onMounted(() => {
     checkAuth();
+    fetchVersion();
     window.addEventListener('storage', checkAuth);
     // Custom event dispatch from Login
     window.addEventListener('auth-change', checkAuth);
@@ -47,6 +59,11 @@ onMounted(() => {
         <v-list-item to="/users" prepend-icon="mdi-account-group" title="Users" active-color="primary"></v-list-item>
         <v-list-item to="/docs" prepend-icon="mdi-file-code" title="API Docs" active-color="primary"></v-list-item>
       </v-list>
+      <template v-slot:append>
+        <div class="pa-2 text-center text-caption text-medium-emphasis">
+          v{{ version }}
+        </div>
+      </template>
     </v-navigation-drawer>
 
     <v-main class="bg-background">

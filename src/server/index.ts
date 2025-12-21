@@ -68,8 +68,10 @@ app.use('/api/*', cors({
 
 app.use('*', logger());
 
+import pkg from '../../package.json';
+
 app.get('/api/health', (c) => {
-  return c.json({ status: 'ok', version: '1.0.0', db: 'connected' });
+  return c.json({ status: 'ok', version: pkg.version, db: 'connected' });
 });
 
 app.post('/api/auth/login', async (c) => {

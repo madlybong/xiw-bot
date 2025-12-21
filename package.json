@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "0.9.0",
   "type": "module",
   "private": true,
   "scripts": {
@@ -8,6 +8,7 @@
     "build:ui": "cd src/ui && bun run build",
     "embed": "bun src/scripts/embed-assets.ts",
     "build": "bun run build:ui && bun run embed && bun build --compile src/server/index.ts --outfile bin/bot-server",
+    "release": "bun src/scripts/release.ts",
     "sync": "bun src/scripts/auto_sync.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
