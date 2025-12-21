@@ -308,11 +308,19 @@ app.get('/api/wa/status/:id', authMiddleware, (c) => {
 
 app.post('/api/wa/logout/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
-  const session = waManager.getSession(id);
-  if (session?.socket) {
-    await session.socket.logout();
+  const payload = c.get('jwtPayload');
+
+  // Access check
+  if (payload.type === 'api_token') {
+    const allowed = payload.allowedInstances as number[];
+    if (!allowed.includes(Number(id))) return c.json({ error: 'Access Denied' }, 403);
   }
+
   await waManager.deleteSession(id);
+
+  // Update instance status in DB to match
+  db.query('UPDATE instances SET status = $status WHERE id = $id').run({ $status: 'stopped', $id: id });
+
   return c.json({ success: true });
 });
 

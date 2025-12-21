@@ -1,6 +1,7 @@
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const makeWASocket = require('@whiskeysockets/baileys').default;
+const { fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 import { DisconnectReason, useMultiFileAuthState, type ConnectionState } from '@whiskeysockets/baileys';
 import { useSQLiteAuthState } from './wa-auth';
 import db from './db';
@@ -27,20 +28,23 @@ export const waManager = {
         }
 
         const { state, saveCreds } = await useSQLiteAuthState(id);
-        console.log(`[WA:${id}] Session state loaded. Has creds: ${!!state.creds}, Keys loaded: ${Object.keys(state.keys).length > 0}`);
+        const { version, isLatest } = await fetchLatestBaileysVersion();
+        console.log(`[WA:${id}] Using WA version v${version.join('.')}, isLatest: ${isLatest}`);
 
         const sock = makeWASocket({
+            version,
             auth: state,
             printQRInTerminal: false,
             logger: pino({ level: 'debug' }) as any,
-            // browser: ['Ubuntu', 'Chrome', '20.0.04'] // Removed to allow default behavior, fixing 428 errors
-            connectTimeoutMs: 60000,
-            defaultQueryTimeoutMs: 60000,
-            keepAliveIntervalMs: 10000,
+            browser: ['XiW Bot', 'Chrome', '125.0.0.0'], // Proper identification
+            connectTimeoutMs: 60_000,
+            defaultQueryTimeoutMs: 60_000,
+            keepAliveIntervalMs: 10_000,
             emitOwnEvents: false,
             retryRequestDelayMs: 250,
             syncFullHistory: false,
-            markOnlineOnConnect: false
+            markOnlineOnConnect: false,
+            generateHighQualityLinkPreview: true
         });
 
         const sessionData: SessionData = {
