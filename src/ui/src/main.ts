@@ -16,6 +16,7 @@ import Contacts from './pages/Contacts.vue'
 import AuditLog from './pages/AuditLog.vue'
 import Documentation from './pages/Documentation.vue'
 import Users from './pages/Users.vue'
+import License from './pages/License.vue'
 
 const vuetify = createVuetify({
     components,
@@ -67,6 +68,11 @@ const routes = [
     {
         path: '/users',
         component: Users,
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/license',
+        component: License,
         meta: { requiresAuth: true }
     },
     { path: '/docs', component: Documentation },

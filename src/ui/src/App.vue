@@ -87,6 +87,7 @@ onMounted(() => {
         <v-list-item to="/contacts" prepend-icon="mdi-contacts" title="Address Book" active-color="primary" rounded="xl"></v-list-item>
         <v-list-item to="/logs" prepend-icon="mdi-history" title="Audit Logs" active-color="primary" rounded="xl"></v-list-item>
         <v-list-item to="/users" prepend-icon="mdi-account-group" title="Users" active-color="primary" rounded="xl"></v-list-item>
+        <v-list-item to="/license" prepend-icon="mdi-license" title="License" active-color="primary" rounded="xl"></v-list-item>
         <v-list-item to="/docs" prepend-icon="mdi-file-code" title="API Docs" active-color="primary" rounded="xl"></v-list-item>
       </v-list>
     </v-navigation-drawer>
