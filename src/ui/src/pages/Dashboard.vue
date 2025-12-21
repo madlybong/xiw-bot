@@ -33,6 +33,39 @@ const fetchStatus = async () => {
     loading.value = false;
 };
 
+
+
+const createDialog = ref(false);
+const newInstanceName = ref('');
+
+const createInstance = async () => {
+    if (!newInstanceName.value) return;
+    try {
+        const res = await fetch('/api/instances', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}` 
+            },
+            body: JSON.stringify({ name: newInstanceName.value })
+        });
+        if (res.ok) {
+            createDialog.value = false;
+            newInstanceName.value = '';
+            fetchStatus();
+        }
+    } catch(e) { console.error(e); }
+};
+
+const deleteInstance = async (id: number) => {
+    if(!confirm('Delete this instance permanently?')) return;
+    await fetch(`/api/instances/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    fetchStatus();
+};
+
 // Actions
 const startInstance = async (id: number) => {
     await fetch(`/api/wa/start/${id}`, {
@@ -82,6 +115,7 @@ const getStatusColor = (status: string) => {
     <div class="d-flex align-center mb-6">
         <h1 class="text-h4 font-weight-bold">Dashboard</h1>
         <v-spacer></v-spacer>
+        <v-btn color="primary" class="mr-2" prepend-icon="mdi-plus" @click="createDialog = true">Add Instance</v-btn>
         <v-btn prepend-icon="mdi-refresh" @click="fetchStatus" :loading="loading">Refresh</v-btn>
     </div>
 
@@ -93,6 +127,9 @@ const getStatusColor = (status: string) => {
                          <v-avatar color="primary" variant="tonal">
                             <v-icon icon="mdi-whatsapp"></v-icon>
                         </v-avatar>
+                    </template>
+                    <template v-slot:append>
+                        <v-btn icon="mdi-delete" variant="text" size="small" color="error" @click="deleteInstance(inst.id)"></v-btn>
                     </template>
                     <v-card-title>{{ inst.name }}</v-card-title>
                     <v-card-subtitle>
@@ -154,6 +191,21 @@ const getStatusColor = (status: string) => {
             </v-card-text>
             <v-card-actions>
                 <v-btn color="primary" block @click="qrDialog = false">Close</v-btn>
+            </v-card-actions>
+        </v-card>
+    </v-dialog>
+
+    <!-- Create Dialog -->
+    <v-dialog v-model="createDialog" max-width="400">
+        <v-card>
+            <v-card-title>Add New Instance</v-card-title>
+            <v-card-text>
+                <v-text-field v-model="newInstanceName" label="Instance Name" variant="outlined" autofocus @keyup.enter="createInstance"></v-text-field>
+            </v-card-text>
+            <v-card-actions>
+                <v-spacer></v-spacer>
+                <v-btn @click="createDialog = false">Cancel</v-btn>
+                <v-btn color="primary" @click="createInstance">Create</v-btn>
             </v-card-actions>
         </v-card>
     </v-dialog>

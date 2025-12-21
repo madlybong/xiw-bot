@@ -30,6 +30,19 @@
         </v-card-text>
     </v-card>
     
+     <v-card class="mb-6">
+        <v-card-title>Instance Management</v-card-title>
+         <v-card-text>
+            <v-list density="compact">
+                <v-list-item title="POST /api/instances" subtitle="Create a new WhatsApp instance. Body: { name: 'My Bot' }"></v-list-item>
+                <v-list-item title="DELETE /api/instances/:id" subtitle="Delete an instance and its session data"></v-list-item>
+                <v-list-item title="GET /api/wa/status" subtitle="Get status of all instances"></v-list-item>
+                <v-list-item title="POST /api/wa/start/:id" subtitle="Start a session for an instance"></v-list-item>
+                <v-list-item title="POST /api/wa/logout/:id" subtitle="Logout/Stop session"></v-list-item>
+            </v-list>
+        </v-card-text>
+    </v-card>
+
      <v-card>
         <v-card-title>Address Book</v-card-title>
          <v-card-text>

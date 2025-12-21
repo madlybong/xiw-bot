@@ -32,7 +32,7 @@ export const waManager = {
             auth: state,
             printQRInTerminal: false,
             logger: pino({ level: 'debug' }) as any,
-            browser: ['Ubuntu', 'Chrome', '20.0.04']
+            // browser: ['Ubuntu', 'Chrome', '20.0.04'] // Removed to allow default behavior, fixing 428 errors
         });
 
         const sessionData: SessionData = {

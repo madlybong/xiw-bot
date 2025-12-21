@@ -199,6 +199,45 @@ app.post('/api/wa/start/:id', authMiddleware, async (c) => {
   return c.json({ success: true });
 });
 
+// Instance Management
+app.post('/api/instances', authMiddleware, async (c) => {
+  const { name } = await c.req.json();
+  if (!name) return c.json({ error: 'Name is required' }, 400);
+
+  try {
+    const info = db.query('INSERT INTO instances (name, status) VALUES (?1, ?2) RETURNING id').get(name, 'stopped') as any;
+    // Log action
+    const user = c.get('jwtPayload');
+    db.query('INSERT INTO audit_logs (user_id, action, details) VALUES ($uid, $act, $det)').run({
+      $uid: user.id,
+      $act: 'create_instance',
+      $det: JSON.stringify({ name, id: info.id })
+    });
+    return c.json({ success: true, id: info.id });
+  } catch (e: any) {
+    return c.json({ error: 'Failed to create instance', details: e.message }, 500);
+  }
+});
+
+app.delete('/api/instances/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id');
+  // Stop session first
+  try {
+    await waManager.deleteSession(id);
+    db.query('DELETE FROM instances WHERE id = $id').run({ $id: id });
+    const user = c.get('jwtPayload');
+    db.query('INSERT INTO audit_logs (user_id, action, details) VALUES ($uid, $act, $det)').run({
+      $uid: user.id,
+      $act: 'delete_instance',
+      $det: JSON.stringify({ id })
+    });
+    return c.json({ success: true });
+  } catch (e: any) {
+    return c.json({ error: 'Failed' }, 500);
+  }
+});
+
+// WA Routing
 app.get('/api/wa/status', authMiddleware, (c) => {
   const payload = c.get('jwtPayload');
   let instances = [];
