@@ -12,8 +12,10 @@ import 'vuetify/styles'
 import Login from './pages/Login.vue' // Will create next
 import Dashboard from './pages/Dashboard.vue' // Will create next
 import Contacts from './pages/Contacts.vue' // Will create next
-import AuditLog from './pages/AuditLog.vue' // Will create next
-import Documentation from './pages/Documentation.vue' // Will create next
+import Contacts from './pages/Contacts.vue'
+import AuditLog from './pages/AuditLog.vue'
+import Documentation from './pages/Documentation.vue'
+import Users from './pages/Users.vue'
 
 const vuetify = createVuetify({
     components,
@@ -60,6 +62,11 @@ const routes = [
     {
         path: '/logs',
         component: AuditLog,
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/users',
+        component: Users,
         meta: { requiresAuth: true }
     },
     { path: '/docs', component: Documentation },

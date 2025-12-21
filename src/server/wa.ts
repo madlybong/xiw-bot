@@ -33,6 +33,13 @@ export const waManager = {
             printQRInTerminal: false,
             logger: pino({ level: 'debug' }) as any,
             // browser: ['Ubuntu', 'Chrome', '20.0.04'] // Removed to allow default behavior, fixing 428 errors
+            connectTimeoutMs: 60000,
+            defaultQueryTimeoutMs: 60000,
+            keepAliveIntervalMs: 10000,
+            emitOwnEvents: false,
+            retryRequestDelayMs: 250,
+            syncFullHistory: false,
+            markOnlineOnConnect: false
         });
 
         const sessionData: SessionData = {
