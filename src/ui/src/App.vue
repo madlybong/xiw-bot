@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useTheme } from 'vuetify';
 
 // Navbar Logic Inline for now or separate component
 const drawer = ref(true);
 const auth = ref(false);
 const version = ref('');
 const router = useRouter();
+const theme = useTheme();
 
 const checkAuth = () => {
     auth.value = !!localStorage.getItem('token');
@@ -22,6 +24,12 @@ const fetchVersion = async () => {
    }
 }
 
+const toggleTheme = () => {
+    const newVal = theme.global.name.value === 'dark' ? 'light' : 'dark';
+    theme.global.name.value = newVal;
+    localStorage.setItem('theme', newVal);
+};
+
 const logout = () => {
     localStorage.removeItem('token');
     auth.value = false;
@@ -31,6 +39,13 @@ const logout = () => {
 onMounted(() => {
     checkAuth();
     fetchVersion();
+    
+    // Load saved theme
+    const saved = localStorage.getItem('theme');
+    if (saved) {
+        theme.global.name.value = saved;
+    }
+
     window.addEventListener('storage', checkAuth);
     // Custom event dispatch from Login
     window.addEventListener('auth-change', checkAuth);
@@ -43,6 +58,9 @@ onMounted(() => {
       <v-app-bar-nav-icon @click.stop="drawer = !drawer"></v-app-bar-nav-icon>
       <v-toolbar-title class="font-weight-bold text-primary">XiW Bot</v-toolbar-title>
       <v-spacer></v-spacer>
+      <v-btn icon @click="toggleTheme">
+        <v-icon>{{ theme.global.name.value === 'dark' ? 'mdi-weather-night' : 'mdi-weather-sunny' }}</v-icon>
+      </v-btn>
       <v-btn icon to="/docs">
         <v-icon>mdi-file-document-outline</v-icon>
       </v-btn>
