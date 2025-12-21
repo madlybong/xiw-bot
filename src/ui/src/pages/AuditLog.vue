@@ -72,18 +72,18 @@ onMounted(() => {
     </div>
 
     <!-- Filter/Export Card -->
-    <v-card class="mb-6">
+    <v-card class="mb-6 glass-card" elevation="0">
         <v-card-title>Filter & Export</v-card-title>
         <v-card-text>
             <v-row dense>
                 <v-col cols="12" md="4">
-                    <v-text-field v-model="startDate" type="date" label="Start Date" variant="outlined"></v-text-field>
+                    <v-text-field v-model="startDate" type="date" label="Start Date" variant="outlined" class="apple-input"></v-text-field>
                 </v-col>
                 <v-col cols="12" md="4">
-                    <v-text-field v-model="endDate" type="date" label="End Date" variant="outlined"></v-text-field>
+                    <v-text-field v-model="endDate" type="date" label="End Date" variant="outlined" class="apple-input"></v-text-field>
                 </v-col>
                  <v-col cols="12" md="4">
-                    <v-text-field v-model="userId" label="User ID (Optional)" variant="outlined"></v-text-field>
+                    <v-text-field v-model="userId" label="User ID (Optional)" variant="outlined" class="apple-input"></v-text-field>
                 </v-col>
             </v-row>
         </v-card-text>
@@ -91,7 +91,8 @@ onMounted(() => {
              <v-btn 
                 color="primary" 
                 prepend-icon="mdi-download" 
-                variant="elevated"
+                class="shadow-button"
+                variant="flat"
                 :loading="loading"
                 @click="handleExport"
             >
@@ -101,19 +102,19 @@ onMounted(() => {
     </v-card>
 
     <!-- Logs Table -->
-    <v-card>
+    <v-card class="glass-card" elevation="0">
         <v-card-title>Recent Activity</v-card-title>
         <v-data-table
             :headers="headers"
             :items="logs"
             :items-per-page="10"
-            class="elevation-1"
+            class="glass-table bg-transparent"
         >
             <template v-slot:item.created_at="{ item }">
                 {{ new Date(item.created_at).toLocaleString() }}
             </template>
             <template v-slot:item.username="{ item }">
-                <v-chip size="small" :color="item.username === 'admin' ? 'purple' : 'blue'" label>
+                <v-chip size="small" :color="item.username === 'admin' ? 'purple' : 'blue'" label variant="tonal" class="font-weight-bold">
                     {{ item.username }}
                 </v-chip>
             </template>

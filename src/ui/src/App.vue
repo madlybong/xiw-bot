@@ -54,8 +54,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <v-app>
-    <v-app-bar v-if="auth" color="surface" elevation="1">
+  <v-app class="app-container">
+    <div class="gradient-bg"></div>
+
+    <v-app-bar v-if="auth" class="glass-app-bar" elevation="0">
       <v-app-bar-nav-icon @click.stop="drawer = !drawer"></v-app-bar-nav-icon>
       <v-toolbar-title class="font-weight-bold text-primary">XiW Bot</v-toolbar-title>
       <v-spacer></v-spacer>
@@ -70,33 +72,39 @@ onMounted(() => {
       </v-btn>
     </v-app-bar>
 
-    <v-navigation-drawer v-if="auth" v-model="drawer" color="background">
-      <v-list>
-        <v-list-item to="/dashboard" prepend-icon="mdi-view-dashboard" title="Dashboard" active-color="primary"></v-list-item>
-        <v-list-item to="/contacts" prepend-icon="mdi-contacts" title="Address Book" active-color="primary"></v-list-item>
-        <v-list-item to="/logs" prepend-icon="mdi-history" title="Audit Logs" active-color="primary"></v-list-item>
-        <v-list-item to="/users" prepend-icon="mdi-account-group" title="Users" active-color="primary"></v-list-item>
-        <v-list-item to="/docs" prepend-icon="mdi-file-code" title="API Docs" active-color="primary"></v-list-item>
+    <v-navigation-drawer v-if="auth" v-model="drawer" class="glass-nav" elevation="0">
+      <div class="pa-4 text-center">
+        <v-avatar color="primary" variant="tonal" size="64" class="mb-2">
+            <v-icon size="32">mdi-robot-excited</v-icon>
+        </v-avatar>
+        <div class="text-subtitle-1 font-weight-bold">XiW Bot</div>
+        <div class="text-caption text-medium-emphasis">v{{ version }}</div>
+      </div>
+      <v-divider class="mb-2 mx-4 border-opacity-25"></v-divider>
+
+      <v-list density="compact" nav>
+        <v-list-item to="/dashboard" prepend-icon="mdi-view-dashboard" title="Dashboard" active-color="primary" rounded="xl"></v-list-item>
+        <v-list-item to="/contacts" prepend-icon="mdi-contacts" title="Address Book" active-color="primary" rounded="xl"></v-list-item>
+        <v-list-item to="/logs" prepend-icon="mdi-history" title="Audit Logs" active-color="primary" rounded="xl"></v-list-item>
+        <v-list-item to="/users" prepend-icon="mdi-account-group" title="Users" active-color="primary" rounded="xl"></v-list-item>
+        <v-list-item to="/docs" prepend-icon="mdi-file-code" title="API Docs" active-color="primary" rounded="xl"></v-list-item>
       </v-list>
-      <template v-slot:append>
-        <div class="pa-2 text-center text-caption text-medium-emphasis">
-          v{{ version }}
-        </div>
-      </template>
     </v-navigation-drawer>
 
-    <v-main class="bg-background">
+    <v-main class="bg-transparent">
       <router-view></router-view>
-      <!-- Footer only if authorized (Dashboard layout), Login handles its own -->
       <Footer v-if="auth" />
     </v-main>
   </v-app>
 </template>
 
 <style>
-/* Global overrides if needed */
-body {
-    background-color: #0d0d0f;
+/* Global overrides to ensure transparency */
+html, body, .v-application {
+    background: transparent !important;
+}
+.app-container {
+    background: #0d0d0f; /* Fallback for gradient */
 }
 </style>
 

@@ -7,6 +7,7 @@ import * as directives from 'vuetify/directives'
 import { aliases, mdi } from 'vuetify/iconsets/mdi'
 import '@mdi/font/css/materialdesignicons.css'
 import 'vuetify/styles'
+import './styles/glass.css' // Global Glass Theme
 
 // Pages
 import Login from './pages/Login.vue' // Will create next

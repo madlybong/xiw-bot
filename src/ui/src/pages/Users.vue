@@ -183,8 +183,8 @@ onMounted(() => {
         <v-btn color="primary" @click="openCreate" prepend-icon="mdi-account-plus">Add User</v-btn>
     </div>
 
-    <v-card :loading="loading">
-        <v-table>
+    <v-card :loading="loading" class="glass-card" elevation="0">
+        <v-table class="glass-table bg-transparent">
             <thead>
                 <tr>
                     <th>ID</th>
@@ -199,19 +199,19 @@ onMounted(() => {
             <tbody>
                 <tr v-for="user in users" :key="user.id">
                     <td>{{ user.id }}</td>
-                    <td>{{ user.username }}</td>
+                    <td class="font-weight-bold">{{ user.username }}</td>
                     <td>
-                        <v-chip :color="user.role === 'admin' ? 'purple' : 'blue'" size="small" class="text-uppercase" label>
+                        <v-chip :color="user.role === 'admin' ? 'purple' : 'blue'" size="small" class="text-uppercase font-weight-bold" label variant="tonal">
                             {{ user.role }}
                         </v-chip>
                     </td>
                     <td>
-                        <v-chip :color="user.status === 'active' ? 'success' : 'error'" size="small" label>
+                        <v-chip :color="user.status === 'active' ? 'success' : 'error'" size="small" label variant="flat">
                             {{ user.status }}
                         </v-chip>
                     </td>
                     <td>
-                        <div v-if="user.role !== 'admin'" class="text-caption">
+                        <div v-if="user.role !== 'admin'" class="text-caption font-mono">
                             {{ user.message_limit }} / {{ user.limit_frequency }}
                         </div>
                         <div v-else class="text-caption text-disabled">Unlimited</div>

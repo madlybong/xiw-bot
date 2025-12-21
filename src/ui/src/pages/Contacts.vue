@@ -144,25 +144,28 @@ onMounted(fetchContacts);
          <v-btn color="primary" @click="openCreate" prepend-icon="mdi-plus">Add Contact</v-btn>
     </div>
 
-    <v-card>
+    <v-card class="glass-card" elevation="0">
         <v-data-table
             :headers="headers"
             :items="contacts"
             :search="search"
             :loading="loading"
+            class="glass-table bg-transparent"
         >
             <template v-slot:top>
-                <v-toolbar flat color="transparent">
+                <v-toolbar flat color="transparent" class="px-2">
                     <v-toolbar-title>
                          <v-text-field
                             v-model="search"
                             density="compact"
                             label="Search"
                             prepend-inner-icon="mdi-magnify"
-                            variant="solo-filled"
-                            flat
+                            variant="outlined"
+                            bg-color="rgba(255,255,255,0.05)"
                             hide-details
                             single-line
+                            class="apple-input"
+                            style="max-width: 300px;"
                         ></v-text-field>
                     </v-toolbar-title>
                     <v-divider class="mx-4" inset vertical></v-divider>

@@ -183,7 +183,7 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
     </div>
 
     <!-- Workflow Section -->
-    <v-card class="mb-8" border>
+    <v-card class="mb-8 glass-card" elevation="0">
         <v-card-title class="font-weight-bold">
             <v-icon color="primary" class="mr-2">mdi-sitemap</v-icon>
             Integration Workflow
@@ -202,7 +202,7 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
                     <div class="mb-2"><strong>2. Authenticate Requests</strong></div>
                     <div class="text-caption">
                         Include the token in the HTTP Header of every request:
-                        <v-chip size="small" class="mt-1 font-weight-bold" label>Authorization: Bearer YOUR_TOKEN</v-chip>
+                        <v-chip size="small" class="mt-1 font-weight-bold" label variant="tonal">Authorization: Bearer YOUR_TOKEN</v-chip>
                     </div>
                 </v-timeline-item>
 
@@ -217,46 +217,48 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
         </v-card-text>
     </v-card>
 
-    <v-divider class="mb-8"></v-divider>
+    <v-divider class="mb-8 border-opacity-25"></v-divider>
 
     <!-- Endpoints -->
     <div v-for="(ep, i) in endpoints" :key="i" class="mb-10">
         <div class="d-flex align-center mb-4">
-            <v-chip :color="ep.method === 'GET' ? 'blue' : 'green'" class="mr-3 font-weight-bold" label>
+            <v-chip :color="ep.method === 'GET' ? 'blue' : 'green'" class="mr-3 font-weight-bold" label variant="flat">
                 {{ ep.method }}
             </v-chip>
             <h2 class="text-h5 font-weight-medium">{{ ep.url }}</h2>
         </div>
 
-        <p class="text-body-1 mb-4">{{ ep.desc }}</p>
+        <p class="text-body-1 mb-4 text-medium-emphasis">{{ ep.desc }}</p>
 
-        <v-card variant="flat" border class="bg-surface">
-            <v-tabs v-model="tab" bg-color="surface-variant" density="compact">
+        <v-card variant="flat" class="glass-card bg-transparent">
+            <v-tabs v-model="tab" bg-color="transparent" density="compact" color="primary">
                 <v-tab value="curl">cURL</v-tab>
                 <v-tab value="node">Node.js</v-tab>
                 <v-tab value="php">PHP</v-tab>
                 <v-tab value="vb">VB.NET</v-tab>
             </v-tabs>
 
+            <v-divider class="border-opacity-10"></v-divider>
+
             <v-card-text class="pa-0">
                 <v-window v-model="tab">
                     <v-window-item value="curl">
-                        <v-code class="d-block pa-4 bg-background" style="white-space: pre-wrap; font-family: monospace;">
+                        <v-code class="d-block pa-4 bg-transparent" style="white-space: pre-wrap; font-family: monospace;">
                             {{ ep.code.curl }}
                         </v-code>
                     </v-window-item>
                     <v-window-item value="node">
-                        <v-code class="d-block pa-4 bg-background" style="white-space: pre-wrap; font-family: monospace;">
+                        <v-code class="d-block pa-4 bg-transparent" style="white-space: pre-wrap; font-family: monospace;">
                             {{ ep.code.node }}
                         </v-code>
                     </v-window-item>
                     <v-window-item value="php">
-                        <v-code class="d-block pa-4 bg-background" style="white-space: pre-wrap; font-family: monospace;">
+                        <v-code class="d-block pa-4 bg-transparent" style="white-space: pre-wrap; font-family: monospace;">
                             {{ ep.code.php }}
                         </v-code>
                     </v-window-item>
                     <v-window-item value="vb">
-                        <v-code class="d-block pa-4 bg-background" style="white-space: pre-wrap; font-family: monospace;">
+                        <v-code class="d-block pa-4 bg-transparent" style="white-space: pre-wrap; font-family: monospace;">
                             {{ ep.code.vb }}
                         </v-code>
                     </v-window-item>

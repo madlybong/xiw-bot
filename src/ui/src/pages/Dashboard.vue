@@ -121,39 +121,44 @@ const getStatusColor = (status: string) => {
 
     <v-row>
         <v-col v-for="inst in instances" :key="inst.id" cols="12" md="6" lg="4">
-            <v-card elevation="2" class="h-100" border>
+            <v-card class="glass-card h-100 pa-2 d-flex flex-column" elevation="0">
                 <v-card-item>
                     <template v-slot:prepend>
-                         <v-avatar color="primary" variant="tonal">
+                         <v-avatar color="primary" variant="tonal" class="glass-effect rounded-lg">
                             <v-icon icon="mdi-whatsapp"></v-icon>
                         </v-avatar>
                     </template>
                     <template v-slot:append>
                         <v-btn icon="mdi-delete" variant="text" size="small" color="error" @click="deleteInstance(inst.id)"></v-btn>
                     </template>
-                    <v-card-title>{{ inst.name }}</v-card-title>
-                    <v-card-subtitle>
-                        <v-chip size="x-small" :color="getStatusColor(inst.status)" class="text-uppercase" label>
+                    <v-card-title class="font-weight-bold">{{ inst.name }}</v-card-title>
+                    <v-card-subtitle class="mt-1">
+                        <v-chip size="x-small" :color="getStatusColor(inst.status)" class="text-uppercase font-weight-bold" label variant="flat">
+                            <v-icon start size="x-small" icon="mdi-circle-medium"></v-icon>
                             {{ inst.status }}
                         </v-chip>
                     </v-card-subtitle>
                 </v-card-item>
 
-                <v-card-text>
-                    <div v-if="inst.user" class="d-flex align-center mt-2">
-                         <v-icon size="small" class="mr-2">mdi-account-check</v-icon>
-                         {{ inst.user.name }} ({{ inst.user.id }})
+                <v-card-text class="flex-grow-1">
+                    <div v-if="inst.user" class="d-flex align-center mt-4 pa-3 glass-effect rounded-lg">
+                         <v-icon size="small" class="mr-2" color="success">mdi-account-check</v-icon>
+                         <div>
+                            <div class="text-body-2 font-weight-bold">{{ inst.user.name }}</div>
+                            <div class="text-caption text-medium-emphasis">{{ inst.user.id }}</div>
+                         </div>
                     </div>
-                    <div v-else class="text-caption text-medium-emphasis mt-2">
-                        Not connected
+                    <div v-else class="text-caption text-medium-emphasis mt-4 pa-3 text-center border-dashed rounded-lg">
+                        Session Disconnected
                     </div>
                 </v-card-text>
 
-                <v-card-actions>
+                <v-card-actions class="justify-end px-4 pb-4">
                     <v-btn 
                         v-if="inst.status !== 'connected'" 
-                        variant="tonal" 
+                        variant="flat" 
                         color="success" 
+                        class="shadow-button"
                         @click="startInstance(inst.id)"
                     >
                         Start Session
@@ -174,6 +179,7 @@ const getStatusColor = (status: string) => {
                         v-if="inst.status === 'connecting' && inst.qr" 
                         variant="outlined" 
                         color="info"
+                        class="glass-effect"
                         prepend-icon="mdi-qrcode"
                         @click="showQr(inst.qr, inst.name)"
                     >
@@ -182,7 +188,7 @@ const getStatusColor = (status: string) => {
 
                     <v-btn 
                          v-if="inst.status === 'connected'"
-                         variant="text" 
+                         variant="tonal" 
                          color="error" 
                          @click="stopInstance(inst.id)"
                     >
