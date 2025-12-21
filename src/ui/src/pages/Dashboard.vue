@@ -20,7 +20,7 @@ const selectedName = ref('');
 const fetchStatus = async () => {
     loading.value = true;
     try {
-        const res = await fetch('/api/wa/status', {
+        const res = await fetch('/backend/wa/status', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         if (res.ok) {
@@ -41,7 +41,7 @@ const newInstanceName = ref('');
 const createInstance = async () => {
     if (!newInstanceName.value) return;
     try {
-        const res = await fetch('/api/instances', {
+        const res = await fetch('/backend/instances', {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
@@ -59,7 +59,7 @@ const createInstance = async () => {
 
 const deleteInstance = async (id: number) => {
     if(!confirm('Delete this instance permanently?')) return;
-    await fetch(`/api/instances/${id}`, {
+    await fetch(`/backend/instances/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
     });
@@ -68,7 +68,7 @@ const deleteInstance = async (id: number) => {
 
 // Actions
 const startInstance = async (id: number) => {
-    await fetch(`/api/wa/start/${id}`, {
+    await fetch(`/backend/wa/start/${id}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
     });
@@ -76,7 +76,7 @@ const startInstance = async (id: number) => {
 };
 
 const stopInstance = async (id: number) => {
-     await fetch(`/api/wa/logout/${id}`, {
+     await fetch(`/backend/wa/logout/${id}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
     });

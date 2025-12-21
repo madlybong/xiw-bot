@@ -47,6 +47,7 @@ export const tokenManager = {
                 id: token.assigned_user_id,
                 username: token.username,
                 role: token.role,
+                tokenId: token.id, // [FIX] Return the implementation ID of the token
                 allowedInstances: allowedIds
             };
         }

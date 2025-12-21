@@ -13,6 +13,7 @@ interface User {
 }
 
 const users = ref<User[]>([]);
+const instances = ref<{id: number, name: string}[]>([]); // For dropdown
 const loading = ref(false);
 const dialog = ref(false);
 const isEdit = ref(false);
@@ -22,29 +23,61 @@ const editId = ref(0);
 const formUser = ref({ 
     username: '', 
     password: '', 
-    role: 'agent',
+    role: 'agent', // Fixed to agent
     status: 'active',
     message_limit: 1000,
     limit_frequency: 'daily'
 });
+
+// Token Management
+const staticToken = ref('');
+const selectedInstances = ref<number[]>([]);
+const tokenLoading = ref(false);
 
 const error = ref('');
 
 const fetchUsers = async () => {
     loading.value = true;
     try {
-        const res = await fetch('/api/users', {
+        const res = await fetch('/backend/users', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         if (res.ok) {
             const data = await res.json();
             users.value = data.users;
-        } else {
-             const data = await res.json();
-             if(res.status === 403) alert('Unauthorized');
         }
     } catch (e) { console.error(e); }
     loading.value = false;
+};
+
+const fetchInstances = async () => {
+    try {
+         const res = await fetch('/backend/wa/status', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            // Store simple list
+            instances.value = data.instances.map((i: any) => ({ id: i.id, name: i.name }));
+        }
+    } catch(e) {}
+};
+
+const fetchStaticToken = async (userId: number) => {
+    staticToken.value = '';
+    selectedInstances.value = [];
+    try {
+         const res = await fetch(`/backend/users/${userId}/static-token`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if(data.token) {
+                staticToken.value = '•'.repeat(20) + ' (Active)'; // Masked
+                selectedInstances.value = data.token.instanceIds || [];
+            }
+        }
+    } catch(e) {}
 };
 
 const openCreate = () => {
@@ -59,22 +92,25 @@ const openEdit = (user: User) => {
     // Map fields
     formUser.value = {
         username: user.username,
-        password: '', // Leave empty to keep
+        password: '', 
         role: user.role,
         status: user.status,
         message_limit: user.message_limit,
         limit_frequency: user.limit_frequency
     };
+    
+    // Fetch token info just for this user
+    fetchStaticToken(user.id);
+    
     dialog.value = true;
 };
 
 const saveUser = async () => {
     error.value = '';
-    // Validation
     if(!isEdit.value && (!formUser.value.username || !formUser.value.password)) return;
 
     try {
-        const url = isEdit.value ? `/api/users/${editId.value}` : '/api/users';
+        const url = isEdit.value ? `/backend/users/${editId.value}` : '/backend/users';
         const method = isEdit.value ? 'PUT' : 'POST';
 
         const res = await fetch(url, {
@@ -96,16 +132,47 @@ const saveUser = async () => {
     } catch(e: any) { error.value = e.message; }
 };
 
+const generateToken = async () => {
+    if(selectedInstances.value.length === 0) {
+        alert('Please assign at least one instance.');
+        return;
+    }
+    if(!confirm('This will invalidate any previous static token for this user. Continue?')) return;
+    
+    tokenLoading.value = true;
+    try {
+        const res = await fetch(`/backend/users/${editId.value}/static-token`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}` 
+            },
+            body: JSON.stringify({ instanceIds: selectedInstances.value })
+        });
+        
+        const data = await res.json();
+        if(res.ok) {
+            staticToken.value = data.token;
+        } else {
+            alert(data.error);
+        }
+    } catch(e) {}
+    tokenLoading.value = false;
+};
+
 const deleteUser = async (id: number) => {
     if(!confirm('Delete this user?')) return;
-    await fetch(`/api/users/${id}`, {
+    await fetch(`/backend/users/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
     });
     fetchUsers();
 }
 
-onMounted(fetchUsers);
+onMounted(() => {
+    fetchUsers();
+    fetchInstances();
+});
 </script>
 
 <template>
@@ -164,46 +231,51 @@ onMounted(fetchUsers);
     </v-card>
 
     <!-- Create/Edit Dialog -->
-    <v-dialog v-model="dialog" max-width="500">
+    <v-dialog v-model="dialog" max-width="600">
         <v-card>
-            <v-card-title>{{ isEdit ? 'Edit User' : 'Create User' }}</v-card-title>
+            <v-card-title>{{ isEdit ? 'Edit User' : 'Create Agent' }}</v-card-title>
             <v-card-text>
                 <v-form @submit.prevent="saveUser">
-                    <v-text-field 
-                        v-model="formUser.username" 
-                        label="Username" 
-                        :disabled="isEdit"
-                        variant="outlined" 
-                        class="mb-2"
-                    ></v-text-field>
-                    
-                    <v-text-field 
-                        v-model="formUser.password" 
-                        label="Password" 
-                        :placeholder="isEdit ? 'Leave blank to keep current' : ''"
-                        type="password"
-                        variant="outlined"
-                        class="mb-2"
-                    ></v-text-field>
-
                     <v-row>
                         <v-col cols="6">
-                             <v-select 
-                                v-model="formUser.role" 
-                                label="Role" 
-                                :items="['agent', 'admin']"
-                                variant="outlined"
-                            ></v-select>
+                             <v-text-field 
+                                v-model="formUser.username" 
+                                label="Username" 
+                                :disabled="isEdit"
+                                variant="outlined" 
+                                density="compact"
+                            ></v-text-field>
                         </v-col>
+                        <v-col cols="6">
+                             <v-text-field 
+                                v-model="formUser.password" 
+                                label="Password" 
+                                :placeholder="isEdit ? 'Unchanged' : ''"
+                                type="password"
+                                variant="outlined"
+                                density="compact"
+                            ></v-text-field>
+                        </v-col>
+                    </v-row>
+
+                    <v-row>
                         <v-col cols="6">
                              <v-select 
                                 v-model="formUser.status" 
                                 label="Status" 
                                 :items="['active', 'suspended']"
                                 variant="outlined"
+                                density="compact"
                             ></v-select>
                         </v-col>
+                        <!-- Role is hidden/fixed to Agent -->
+                         <v-col cols="6" v-if="isEdit && formUser.role === 'admin'">
+                             <v-chip color="purple">Admin Role</v-chip>
+                        </v-col>
                     </v-row>
+
+                    <v-divider class="my-4"></v-divider>
+                    <div class="text-subtitle-2 mb-2">Usage Limits</div>
 
                     <v-row v-if="formUser.role !== 'admin'">
                          <v-col cols="6">
@@ -212,6 +284,7 @@ onMounted(fetchUsers);
                                 label="Message Limit" 
                                 type="number"
                                 variant="outlined"
+                                density="compact"
                             ></v-text-field>
                         </v-col>
                         <v-col cols="6">
@@ -220,19 +293,57 @@ onMounted(fetchUsers);
                                 label="Frequency" 
                                 :items="['daily', 'monthly', 'unlimited']"
                                 variant="outlined"
+                                density="compact"
                             ></v-select>
                         </v-col>
                     </v-row>
 
-                    <v-alert v-if="error" type="error" density="compact" class="mt-2">{{ error }}</v-alert>
+                    <!-- API Access Section (Only in Edit Mode) -->
+                    <div v-if="isEdit && formUser.role !== 'admin'" class="mt-4 bg-grey-darken-4 pa-4 rounded">
+                        <div class="text-subtitle-1 font-weight-bold mb-2 text-primary">API Access</div>
+                        <p class="text-caption text-medium-emphasis mb-4">
+                            Assign instances and generate a static token. This token is <strong>mandatory</strong> for sending messages via API.
+                        </p>
+
+                        <v-select
+                            v-model="selectedInstances"
+                            :items="instances"
+                            item-title="name"
+                            item-value="id"
+                            label="Assigned Instances"
+                            multiple
+                            chips
+                            variant="outlined"
+                            density="compact"
+                        ></v-select>
+
+                        <div class="d-flex align-center mt-2">
+                            <v-text-field
+                                v-model="staticToken"
+                                label="Static Token"
+                                readonly
+                                variant="outlined"
+                                density="compact"
+                                hide-details
+                                class="mr-2"
+                            ></v-text-field>
+                            <v-btn color="secondary" :loading="tokenLoading" @click="generateToken">
+                                Generate
+                            </v-btn>
+                        </div>
+                    </div>
+
+                    <v-alert v-if="error" type="error" density="compact" class="mt-4">{{ error }}</v-alert>
                 </v-form>
             </v-card-text>
             <v-card-actions>
                 <v-spacer></v-spacer>
                 <v-btn @click="dialog = false">Cancel</v-btn>
-                <v-btn color="primary" @click="saveUser">Save</v-btn>
+                <v-btn color="primary" @click="saveUser">Save User</v-btn>
             </v-card-actions>
         </v-card>
     </v-dialog>
   </v-container>
 </template>
+
+

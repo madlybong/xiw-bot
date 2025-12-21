@@ -26,7 +26,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
                 username: user.username,
                 role: user.role,
                 id: user.id,
-                tokenId: user.id, // Using user.id as token ID placeholder since validate returns user info roughly
+                tokenId: user.tokenId, // [FIX] Correctly map the Token ID
                 type: 'api_token',
                 allowedInstances: user.allowedInstances // Array of instance IDs
             });

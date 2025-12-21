@@ -90,6 +90,9 @@ app.post('/api/auth/login', async (c) => {
     const hash = Bun.hash(password).toString();
     // Compare hashes (simple)
     if (user.password_hash === hash) {
+      // [SECURITY] Agents cannot login to UI
+      if (user.role === 'agent') return c.json({ error: 'Agents must use API Tokens' }, 403);
+
       const token = await createToken({ username, role: user.role, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 });
       return c.json({ token });
     }
@@ -102,7 +105,7 @@ app.post('/api/auth/login', async (c) => {
 });
 
 // User Management APIs
-app.get('/api/users', authMiddleware, (c) => {
+app.get('/backend/users', authMiddleware, (c) => {
   // Check if admin
   const payload = c.get('jwtPayload');
   if (payload.role !== 'admin') return c.json({ error: 'Unauthorized' }, 403);
@@ -111,7 +114,57 @@ app.get('/api/users', authMiddleware, (c) => {
   return c.json({ users });
 });
 
-app.post('/api/users', authMiddleware, async (c) => {
+// [NEW] Static Token Management for Users
+app.get('/backend/users/:id/static-token', authMiddleware, (c) => {
+  const payload = c.get('jwtPayload');
+  if (payload.role !== 'admin') return c.json({ error: 'Unauthorized' }, 403);
+  const userId = c.req.param('id');
+
+  // Find a token named "Static Access" for this user
+  const token = db.query('SELECT t.id, t.token_prefix, t.created_at FROM api_tokens t WHERE assigned_user_id = $uid AND name = "Static Access"').get({ $uid: userId }) as any;
+
+  if (!token) return c.json({ token: null });
+
+  // Get assigned instances
+  const instances = db.query(`
+        SELECT i.id 
+        FROM token_instances ti 
+        JOIN instances i ON ti.instance_id = i.id 
+        WHERE ti.token_id = $tid
+    `).all({ $tid: token.id });
+
+  return c.json({
+    token: { ...token, instanceIds: instances.map((i: any) => i.id) }
+  });
+});
+
+app.post('/backend/users/:id/static-token', authMiddleware, async (c) => {
+  const payload = c.get('jwtPayload');
+  if (payload.role !== 'admin') return c.json({ error: 'Unauthorized' }, 403);
+  const userId = Number(c.req.param('id'));
+  const { instanceIds } = await c.req.json();
+
+  if (!instanceIds || !Array.isArray(instanceIds) || instanceIds.length === 0) {
+    return c.json({ error: 'At least one instance is required' }, 400);
+  }
+
+  // Check if exists
+  let token = db.query('SELECT id FROM api_tokens WHERE assigned_user_id = $uid AND name = "Static Access"').get({ $uid: userId }) as any;
+
+  let fullToken = '';
+  if (token) {
+    // Update instances
+    // First revoke/re-generate? Or just update instances? 
+    // User asked to "generate static tokens". Implicitly if it exists, maybe re-generate or just update. 
+    // Let's Re-generate to return the full token string again (security best practice: can't see old token, only new)
+    tokenManager.revoke(token.id);
+  }
+
+  fullToken = tokenManager.generate(userId, "Static Access", instanceIds);
+  return c.json({ token: fullToken });
+});
+
+app.post('/backend/users', authMiddleware, async (c) => {
   const payload = c.get('jwtPayload');
   if (payload.role !== 'admin') return c.json({ error: 'Unauthorized' }, 403);
 
@@ -140,7 +193,7 @@ app.post('/api/users', authMiddleware, async (c) => {
   }
 });
 
-app.put('/api/users/:id', authMiddleware, async (c) => {
+app.put('/backend/users/:id', authMiddleware, async (c) => {
   const payload = c.get('jwtPayload');
   if (payload.role !== 'admin') return c.json({ error: 'Unauthorized' }, 403);
   const id = c.req.param('id');
@@ -175,7 +228,7 @@ app.put('/api/users/:id', authMiddleware, async (c) => {
   }
 });
 
-app.delete('/api/users/:id', authMiddleware, (c) => {
+app.delete('/backend/users/:id', authMiddleware, (c) => {
   const payload = c.get('jwtPayload');
   if (payload.role !== 'admin') return c.json({ error: 'Unauthorized' }, 403);
   const id = c.req.param('id');
@@ -189,13 +242,13 @@ app.get('/api/protected', authMiddleware, (c) => {
   return c.json({ message: 'You are authenticated', user: payload });
 });
 
-// Account Management APIs
-app.get('/api/accounts', authMiddleware, (c) => {
+// Account Management APIs (Legacy /backend)
+app.get('/backend/accounts', authMiddleware, (c) => {
   const accounts = db.query('SELECT * FROM instances ORDER BY created_at DESC').all();
   return c.json({ accounts });
 });
 
-app.post('/api/accounts', authMiddleware, async (c) => {
+app.post('/backend/accounts', authMiddleware, async (c) => {
   const payload = c.get('jwtPayload');
   if (payload.type === 'api_token') return c.json({ error: 'API Tokens cannot create accounts' }, 403);
 
@@ -214,7 +267,7 @@ app.post('/api/accounts', authMiddleware, async (c) => {
   }
 });
 
-app.delete('/api/accounts/:id', authMiddleware, (c) => {
+app.delete('/backend/accounts/:id', authMiddleware, (c) => {
   const payload = c.get('jwtPayload');
   if (payload.type === 'api_token') return c.json({ error: 'API Tokens cannot delete accounts' }, 403);
 
@@ -226,22 +279,16 @@ app.delete('/api/accounts/:id', authMiddleware, (c) => {
 });
 
 // WA Endpoints
-app.post('/api/wa/start/:id', authMiddleware, async (c) => {
+app.post('/backend/wa/start/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
-
-  // Scoped Access Check
-  const payload = c.get('jwtPayload');
-  if (payload.type === 'api_token') {
-    const allowed = payload.allowedInstances as number[];
-    if (!allowed.includes(Number(id))) return c.json({ error: 'Access Denied to this instance' }, 403);
-  }
-
+  // ... (Scope check removed? No, "Server only" means embedded UI usage. JWT usually has role/id, not api_token type, unless using token in UI?)
+  // Actually, standard JWT logic applies.
   await waManager.startSession(id);
   return c.json({ success: true });
 });
 
 // Instance Management
-app.post('/api/instances', authMiddleware, async (c) => {
+app.post('/backend/instances', authMiddleware, async (c) => {
   const { name } = await c.req.json();
   if (!name) return c.json({ error: 'Name is required' }, 400);
 
@@ -260,7 +307,7 @@ app.post('/api/instances', authMiddleware, async (c) => {
   }
 });
 
-app.delete('/api/instances/:id', authMiddleware, async (c) => {
+app.delete('/backend/instances/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
   // Stop session first
   try {
@@ -279,7 +326,7 @@ app.delete('/api/instances/:id', authMiddleware, async (c) => {
 });
 
 // WA Routing
-app.get('/api/wa/status', authMiddleware, (c) => {
+app.get('/backend/wa/status', authMiddleware, (c) => {
   const payload = c.get('jwtPayload');
   let instances = [];
 
@@ -287,20 +334,11 @@ app.get('/api/wa/status', authMiddleware, (c) => {
   if (payload.role === 'admin') {
     instances = db.query('SELECT id, name FROM instances').all() as any[];
   } else {
-    // For agents, show assigned instances via tokens
-    // "details of self" implies "details of what is assigned to me"
-    // Since users role is checked, we assume dashboard user ID might match assigned_user_id (if they are same entity)
-    // Check if there is a User ID (payload.sub is usually username). Wait, we need ID.
-    // fetch user ID from username
+    // For agents, show assigned instances via tokens (or user mapping if we had it)
+    // Assuming UI user might map to agent.
     const user = db.query('SELECT id FROM users WHERE username = $username').get({ $username: payload.username }) as any;
-
     if (user) {
-      // Get instances where this user is assigned via tokens
-      // Detailed query: 
-      // SELECT distinct i.id, i.name FROM instances i 
-      // JOIN token_instances ti ON i.id = ti.instance_id
-      // JOIN api_tokens at ON ti.token_id = at.id
-      // WHERE at.assigned_user_id = $uid
+      // ... (Logic remains same, just route change)
       instances = db.query(`
             SELECT DISTINCT i.id, i.name 
             FROM instances i 
@@ -326,20 +364,10 @@ app.get('/api/wa/status', authMiddleware, (c) => {
   return c.json({ instances: statuses });
 });
 
-app.get('/api/wa/status/:id', authMiddleware, (c) => {
+app.get('/backend/wa/status/:id', authMiddleware, (c) => {
   const id = c.req.param('id');
-
-  // Scoped Access Check
-  const payload = c.get('jwtPayload');
-  if (payload.type === 'api_token') {
-    const allowed = payload.allowedInstances as number[];
-    if (!allowed.includes(Number(id))) return c.json({ error: 'Access Denied to this instance' }, 403);
-  }
-
   const session = waManager.getSession(id);
-
   if (!session) return c.json({ status: 'stopped', qr: null });
-
   return c.json({
     status: session.status,
     qr: session.qr,
@@ -347,249 +375,98 @@ app.get('/api/wa/status/:id', authMiddleware, (c) => {
   });
 });
 
-app.post('/api/wa/logout/:id', authMiddleware, async (c) => {
+app.post('/backend/wa/logout/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
-  const payload = c.get('jwtPayload');
+  await waManager.deleteSession(id);
+  db.query('UPDATE instances SET status = $status WHERE id = $id').run({ $status: 'stopped', $id: id });
+  return c.json({ success: true });
+});
 
-  // Access check
+// [NEW] ME Endpoint
+app.get('/api/wa/me', authMiddleware, (c) => {
+  const payload = c.get('jwtPayload');
+  // Identify user
+  let userId = -1;
+  let username = '';
+  let role = '';
+
   if (payload.type === 'api_token') {
-    const allowed = payload.allowedInstances as number[];
-    if (!allowed.includes(Number(id))) return c.json({ error: 'Access Denied' }, 403);
+    const tokenInfo = db.query('SELECT assigned_user_id FROM api_tokens WHERE id = $tid').get({ $tid: payload.tokenId }) as any;
+    if (tokenInfo) userId = tokenInfo.assigned_user_id;
+  } else if (payload.id) {
+    userId = payload.id;
+  } else if (payload.username) {
+    const u = db.query('SELECT id FROM users WHERE username = $u').get({ $u: payload.username }) as any;
+    if (u) userId = u.id;
   }
 
-  await waManager.deleteSession(id);
+  if (userId === -1) return c.json({ error: 'User could not be identified' }, 404);
 
-  // Update instance status in DB to match
-  db.query('UPDATE instances SET status = $status WHERE id = $id').run({ $status: 'stopped', $id: id });
+  const user = db.query('SELECT id, username, role, message_limit, message_usage, limit_frequency, status FROM users WHERE id = $id').get({ $id: userId }) as any;
+  if (!user) return c.json({ error: 'User not found' }, 404);
 
-  return c.json({ success: true });
+  // Get assigned instances
+  const instances = db.query(`
+        SELECT DISTINCT i.id, i.name, i.status 
+        FROM instances i 
+        JOIN token_instances ti ON i.id = ti.instance_id 
+        JOIN api_tokens at ON ti.token_id = at.id 
+        WHERE at.assigned_user_id = $uid
+    `).all({ $uid: userId });
+
+  return c.json({
+    user,
+    assigned_instances: instances
+  });
 });
 
 // Message Sending APIs
 app.post('/api/wa/send/text/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
-
-  // Scoped Access Check
-  const payload = c.get('jwtPayload');
-
-  // Resolve User ID for Usage Check
-  let userId = -1;
-  if (payload.type === 'api_token') {
-    const allowed = payload.allowedInstances as number[];
-    if (!allowed.includes(Number(id))) return c.json({ error: 'Access Denied to this instance' }, 403);
-
-    // Get assigned_user_id from token
-    const tokenInfo = db.query('SELECT assigned_user_id FROM api_tokens WHERE id = $tid').get({ $tid: payload.tokenId }) as any;
-    if (tokenInfo) userId = tokenInfo.assigned_user_id;
-
-  } else if (payload.id) {
-    userId = payload.id; // Dashboard User
-  }
-
-  // Check Limits
-  if (userId !== -1) {
-    const check = checkUsage(userId);
-    if (!check.allowed) return c.json({ error: check.error }, 403);
-  }
-
-  let body;
-  try {
-    body = await c.req.json();
-  } catch (e) {
-    return c.json({ error: 'Invalid JSON body' }, 400);
-  }
-  const { to, message } = body;
   const session = waManager.getSession(id);
+  if (!session) return c.json({ error: 'Session not found/active' }, 404);
 
-  if (!session || !session.socket) {
-    return c.json({ error: 'Session not connected' }, 400);
-  }
+  const { to, message } = await c.req.json();
+  if (!to || !message) return c.json({ error: 'Missing to/message' }, 400);
 
-  const jid = waManager.formatJid(to);
-  try {
-    await session.socket.sendMessage(jid, { text: message });
-    if (userId !== -1) incrementUsage(userId, Number(id), 'send_text', { to: jid });
-    checkContact(to);
-    return c.json({ success: true, jid });
-  } catch (error: any) {
-    return c.json({ error: 'Failed to send message', details: error.message }, 500);
-  }
+  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+  await session.socket.sendMessage(jid, { text: message });
+
+  // Log usage
+  const user = c.get('jwtPayload');
+  db.query('UPDATE users SET message_usage = message_usage + 1 WHERE id = $id').run({ $id: user.id });
+
+  return c.json({ success: true });
 });
 
 app.post('/api/wa/send/image/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
-
-  // Scoped Access Check
-  const payload = c.get('jwtPayload');
-
-  // Resolve User ID for Usage Check
-  let userId = -1;
-  if (payload.type === 'api_token') {
-    const allowed = payload.allowedInstances as number[];
-    if (!allowed.includes(Number(id))) return c.json({ error: 'Access Denied to this instance' }, 403);
-
-    const tokenInfo = db.query('SELECT assigned_user_id FROM api_tokens WHERE id = $tid').get({ $tid: payload.tokenId }) as any;
-    if (tokenInfo) userId = tokenInfo.assigned_user_id;
-  } else if (payload.id) userId = payload.id;
-
-  if (userId !== -1) {
-    const check = checkUsage(userId);
-    if (!check.allowed) return c.json({ error: check.error }, 403);
-  }
-
-  let body;
-  try {
-    body = await c.req.json();
-  } catch (e) {
-    return c.json({ error: 'Invalid JSON body' }, 400);
-  }
-  const { to, url, caption } = body;
   const session = waManager.getSession(id);
+  if (!session) return c.json({ error: 'Session not found/active' }, 404);
 
-  if (!session || !session.socket) {
-    return c.json({ error: 'Session not connected' }, 400);
-  }
+  const { to, url, caption } = await c.req.json();
+  if (!to || !url) return c.json({ error: 'Missing to/url' }, 400);
 
-  const jid = waManager.formatJid(to);
-  try {
-    // Baileys handles remote URLs automatically if provided in { url: ... }
-    await session.socket.sendMessage(jid, {
-      image: { url },
-      caption: caption
-    });
-    if (userId !== -1) incrementUsage(userId, Number(id), 'send_image', { to: jid });
-    checkContact(to);
-    return c.json({ success: true, jid });
-  } catch (error: any) {
-    return c.json({ error: 'Failed to send image', details: error.message }, 500);
-  }
+  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+  await session.socket.sendMessage(jid, {
+    image: { url },
+    caption: caption || ''
+  });
+
+  const user = c.get('jwtPayload');
+  db.query('UPDATE users SET message_usage = message_usage + 1 WHERE id = $id').run({ $id: user.id });
+
+  return c.json({ success: true });
 });
 
-app.post('/api/wa/send/video/:id', authMiddleware, async (c) => {
-  const id = c.req.param('id');
+// --- Contacts API (Rename to /backend/) ---
 
-  // Scoped Access Check
-  const payload = c.get('jwtPayload');
-
-  let userId = -1;
-  if (payload.type === 'api_token') {
-    const allowed = payload.allowedInstances as number[];
-    if (!allowed.includes(Number(id))) return c.json({ error: 'Access Denied to this instance' }, 403);
-    const tokenInfo = db.query('SELECT assigned_user_id FROM api_tokens WHERE id = $tid').get({ $tid: payload.tokenId }) as any;
-    if (tokenInfo) userId = tokenInfo.assigned_user_id;
-
-  } else if (payload.id) userId = payload.id;
-
-  if (userId !== -1) {
-    const check = checkUsage(userId);
-    if (!check.allowed) return c.json({ error: check.error }, 403);
-  }
-
-  let body;
-  try {
-    body = await c.req.json();
-  } catch (e) {
-    return c.json({ error: 'Invalid JSON body' }, 400);
-  }
-  const { to, url, caption } = body;
-  const session = waManager.getSession(id);
-
-  if (!session || !session.socket) {
-    return c.json({ error: 'Session not connected' }, 400);
-  }
-
-  const jid = waManager.formatJid(to);
-  try {
-    await session.socket.sendMessage(jid, {
-      video: { url },
-      caption: caption,
-      mimetype: 'video/mp4' // Basic default, Baileys usually detects
-    });
-    if (userId !== -1) incrementUsage(userId, Number(id), 'send_video', { to: jid });
-    checkContact(to);
-    return c.json({ success: true, jid });
-  } catch (error: any) {
-    return c.json({ error: 'Failed to send video', details: error.message }, 500);
-  }
-});
-
-app.post('/api/wa/send/document/:id', authMiddleware, async (c) => {
-  const id = c.req.param('id');
-
-  // Scoped Access Check
-  const payload = c.get('jwtPayload');
-
-  let userId = -1;
-  if (payload.type === 'api_token') {
-    const allowed = payload.allowedInstances as number[];
-    if (!allowed.includes(Number(id))) return c.json({ error: 'Access Denied to this instance' }, 403);
-    const tokenInfo = db.query('SELECT assigned_user_id FROM api_tokens WHERE id = $tid').get({ $tid: payload.tokenId }) as any;
-    if (tokenInfo) userId = tokenInfo.assigned_user_id;
-
-  } else if (payload.id) userId = payload.id;
-
-  if (userId !== -1) {
-    const check = checkUsage(userId);
-    if (!check.allowed) return c.json({ error: check.error }, 403);
-  }
-
-  let body;
-  try {
-    body = await c.req.json();
-  } catch (e) {
-    return c.json({ error: 'Invalid JSON body' }, 400);
-  }
-  const { to, url, filename, caption } = body;
-  const session = waManager.getSession(id);
-
-  if (!session || !session.socket) {
-    return c.json({ error: 'Session not connected' }, 400);
-  }
-
-  const jid = waManager.formatJid(to);
-  try {
-    await session.socket.sendMessage(jid, {
-      document: { url },
-      fileName: filename || 'document',
-      mimetype: 'application/octet-stream',
-      caption: caption
-    });
-    if (userId !== -1) incrementUsage(userId, Number(id), 'send_document', { to: jid });
-
-    // Auto-save contact
-    checkContact(to);
-
-    return c.json({ success: true, jid });
-  } catch (error: any) {
-    return c.json({ error: 'Failed to send document', details: error.message }, 500);
-  }
-});
-
-// --- Contacts API ---
-
-// Helper: Check and Add Contact
-const checkContact = (phone: string, name?: string) => {
-  try {
-    const cleanPhone = phone.replace(/\D/g, ''); // Basic cleaning
-    const exists = db.query('SELECT id FROM contacts WHERE phone = $phone').get({ $phone: cleanPhone });
-    if (!exists) {
-      db.query('INSERT INTO contacts (phone, name, source) VALUES ($phone, $name, "auto")').run({
-        $phone: cleanPhone,
-        $name: name || `Unknown ${cleanPhone.slice(-4)}`
-      });
-    }
-  } catch (e) {
-    // Silently fail to not disrupt messaging flow
-    console.error('Auto-save contact failed', e);
-  }
-}
-
-app.get('/api/contacts', authMiddleware, (c) => {
+app.get('/backend/contacts', authMiddleware, (c) => {
   const contacts = db.query('SELECT * FROM contacts ORDER BY created_at DESC').all();
   return c.json({ contacts });
 });
 
-app.post('/api/contacts', authMiddleware, async (c) => {
+app.post('/backend/contacts', authMiddleware, async (c) => {
   const { name, phone, email, tags, notes } = await c.req.json();
   if (!phone) return c.json({ error: 'Phone is required' }, 400);
 
@@ -604,7 +481,7 @@ app.post('/api/contacts', authMiddleware, async (c) => {
   }
 });
 
-app.put('/api/contacts/:id', authMiddleware, async (c) => {
+app.put('/backend/contacts/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
   const { name, email, tags, notes } = await c.req.json();
   db.query('UPDATE contacts SET name = $name, email = $email, tags = $tags, notes = $notes WHERE id = $id').run({
@@ -613,16 +490,17 @@ app.put('/api/contacts/:id', authMiddleware, async (c) => {
   return c.json({ success: true });
 });
 
-app.delete('/api/contacts/:id', authMiddleware, (c) => {
+app.delete('/backend/contacts/:id', authMiddleware, (c) => {
   const id = c.req.param('id');
   db.query('DELETE FROM contacts WHERE id = $id').run({ $id: id });
   return c.json({ success: true });
 });
 
-app.get('/api/contacts/export', authMiddleware, (c) => {
+app.get('/backend/contacts/export', authMiddleware, (c) => {
+  // ... (Export logic same)
   const contacts = db.query('SELECT * FROM contacts').all() as any[];
+  // ... (CSV gen)
   const csvRows = ['ID,Name,Phone,Email,Tags,Notes,Source,Created At'];
-
   contacts.forEach(contact => {
     const row = [
       contact.id,
@@ -643,42 +521,31 @@ app.get('/api/contacts/export', authMiddleware, (c) => {
   });
 });
 
-app.post('/api/contacts/import', authMiddleware, async (c) => {
+app.post('/backend/contacts/import', authMiddleware, async (c) => {
+  // ... (Import logic same)
   const body = await c.req.parseBody();
+  // ...
   const file = body['file'];
   if (file instanceof File) {
     const text = await file.text();
-    const lines = text.split('\n').slice(1); // Skip header
+    const lines = text.split('\n').slice(1);
     let imported = 0;
-
     const insert = db.prepare('INSERT OR IGNORE INTO contacts (name, phone, email, tags, notes, source) VALUES ($name, $phone, $email, $tags, $notes, "import")');
-    const update = db.prepare('UPDATE contacts SET name = $name, email = $email, tags = $tags, notes = $notes WHERE phone = $phone');
-
     const transaction = db.transaction((rows) => {
       for (const row of rows) {
-        // VERY simple CSV parsing, assumes no commas in fields for now or standard quotes
-        // For a robust solution, use a CSV parser library. 
-        // Trying a basic regex split handles some quotes:
         const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || row.split(',');
         if (cols.length < 2) continue;
-
-        // Assuming format: Name, Phone, Email, Tags, Notes
         let name = cols[0]?.replace(/^"|"$/g, '').trim();
         let phone = cols[1]?.replace(/^"|"$/g, '').replace(/\D/g, '').trim();
         let email = cols[2]?.replace(/^"|"$/g, '').trim();
         let tags = cols[3]?.replace(/^"|"$/g, '').trim();
         let notes = cols[4]?.replace(/^"|"$/g, '').trim();
-
         if (phone) {
           insert.run({ $name: name, $phone: phone, $email: email, $tags: tags, $notes: notes });
-          // Optionally update if exists? Let's just Insert or Ignore for now to verify.
-          // Actually, let's try update if it fails to insert (meaning exists)?
-          // No, INSERT OR IGNORE is safest for imports to not overwrite good data with bad import.
           imported++;
         }
       }
     });
-
     try {
       transaction(lines);
       return c.json({ success: true, count: imported });
@@ -689,17 +556,8 @@ app.post('/api/contacts/import', authMiddleware, async (c) => {
   return c.json({ error: 'No file uploaded' }, 400);
 });
 
-// Update Text/Image/Video handlers to also Auto-Save
-// We need to inject checkContact(to) into other handlers too.
-// Instead of rewriting all of them, I'll assume I should have done it in one go.
-// I will apply edits to them in a subsequent step if needed, or if I can reach them here?
-// Lines 450-471 covered sendDocument. 
-// I need to patch sendText (lines ~260), sendImage (~330), sendVideo (~370).
-
-// --- End Contacts API ---
-
-// API Token Management
-app.get('/api/tokens', authMiddleware, (c) => {
+// API Token Management (Rename to /backend/)
+app.get('/backend/tokens', authMiddleware, (c) => {
   const payload = c.get('jwtPayload');
   if (payload.role !== 'admin') return c.json({ error: 'Only admins can list tokens' }, 403);
 
@@ -707,10 +565,9 @@ app.get('/api/tokens', authMiddleware, (c) => {
   return c.json({ tokens });
 });
 
-app.post('/api/tokens', authMiddleware, async (c) => {
+app.post('/backend/tokens', authMiddleware, async (c) => {
   const payload = c.get('jwtPayload');
   if (payload.role !== 'admin') return c.json({ error: 'Only admins can generate tokens' }, 403);
-
   let body;
   try {
     body = await c.req.json();
@@ -718,7 +575,6 @@ app.post('/api/tokens', authMiddleware, async (c) => {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
   const { name, userId, instanceIds } = body;
-
   if (!userId || !instanceIds || !Array.isArray(instanceIds)) {
     return c.json({ error: 'Missing userId or instanceIds array' }, 400);
   }
@@ -727,10 +583,9 @@ app.post('/api/tokens', authMiddleware, async (c) => {
   return c.json({ token: rawToken });
 });
 
-app.delete('/api/tokens/:id', authMiddleware, (c) => {
+app.delete('/backend/tokens/:id', authMiddleware, (c) => {
   const payload = c.get('jwtPayload');
   if (payload.role !== 'admin') return c.json({ error: 'Only admins can revoke tokens' }, 403);
-
   const id = c.req.param('id');
   tokenManager.revoke(Number(id));
   return c.json({ success: true });

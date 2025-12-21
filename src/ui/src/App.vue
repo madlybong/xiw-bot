@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTheme } from 'vuetify';
+import Footer from './components/Footer.vue';
 
 // Navbar Logic Inline for now or separate component
 const drawer = ref(true);
@@ -86,9 +87,18 @@ onMounted(() => {
 
     <v-main class="bg-background">
       <router-view></router-view>
+      <!-- Footer only if authorized (Dashboard layout), Login handles its own -->
+      <Footer v-if="auth" />
     </v-main>
   </v-app>
 </template>
+
+<style>
+/* Global overrides if needed */
+body {
+    background-color: #0d0d0f;
+}
+</style>
 
 <style>
 /* Global overrides if needed */

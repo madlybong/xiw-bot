@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 
 interface Contact {
     id: number;
@@ -39,7 +39,7 @@ const headers = [
 const fetchContacts = async () => {
     loading.value = true;
     try {
-        const res = await fetch('/api/contacts', {
+        const res = await fetch('/backend/contacts', {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         if (res.ok) {
@@ -52,7 +52,7 @@ const fetchContacts = async () => {
 
 const saveContact = async () => {
     const isEdit = form.value.id !== -1;
-    const url = isEdit ? `/api/contacts/${form.value.id}` : '/api/contacts';
+    const url = isEdit ? `/backend/contacts/${form.value.id}` : '/backend/contacts';
     const method = isEdit ? 'PUT' : 'POST';
 
     try {
@@ -76,7 +76,7 @@ const saveContact = async () => {
 
 const deleteContact = async (id: number) => {
     if(!confirm('Are you sure?')) return;
-    await fetch(`/api/contacts/${id}`, {
+    await fetch(`/backend/contacts/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
     });
@@ -99,7 +99,7 @@ const handleImport = async () => {
     formData.append('file', importFile.value[0]);
     
     try {
-         const res = await fetch('/api/contacts/import', {
+         const res = await fetch('/backend/contacts/import', {
              method: 'POST',
              headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
              body: formData
@@ -113,13 +113,12 @@ const handleImport = async () => {
 };
 
 const exportContacts = () => {
-    window.location.href = `/api/contacts/export?token=${localStorage.getItem('token')}`; // Better handled via fetch blob if auth needed in header, but basic link works if cookie or query param supported. 
-    // Wait, API expects Bearer header. Link won't work easily. Use fetch.
+    // window.location.href = ... (Deprecated/Removed in previous logic, using fetch now)
     handleExportFetch();
 };
 
 const handleExportFetch = async () => {
-    const res = await fetch('/api/contacts/export', {
+    const res = await fetch('/backend/contacts/export', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
     });
     if(res.ok) {
