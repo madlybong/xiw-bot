@@ -90,13 +90,21 @@ export const initializeLicense = () => {
             db.query("INSERT INTO system_metadata (key, value) VALUES ('machine_fingerprint', $val)").run({ $val: currentFingerprint });
         } else {
             if (stored.value !== currentFingerprint) {
-                console.warn("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                console.warn("WARNING: MACHINE FINGERPRINT MISMATCH DETECTED");
-                console.warn(`Stored: ${stored.value}`);
-                console.warn(`Current: ${currentFingerprint}`);
-                console.warn("This license is bound to a different machine/configuration.");
-                console.warn("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                bindingMismatch = true;
+                // [RE-BINDING LOGIC] Check if the active license is bound to THIS new machine
+                if (activeLicense.machine.bound && activeLicense.machine.fingerprint === currentFingerprint) {
+                    console.log("[Licensing] License is bound to this NEW machine. Updating system binding...");
+                    db.query("UPDATE system_metadata SET value = $val WHERE key = 'machine_fingerprint'").run({ $val: currentFingerprint });
+                    console.log("[Licensing] Re-binding successful. Machine fingerprint updated.");
+                    bindingMismatch = false;
+                } else {
+                    console.warn("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                    console.warn("WARNING: MACHINE FINGERPRINT MISMATCH DETECTED");
+                    console.warn(`Stored: ${stored.value}`);
+                    console.warn(`Current: ${currentFingerprint}`);
+                    console.warn("This license is bound to a different machine/configuration.");
+                    console.warn("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                    bindingMismatch = true;
+                }
             } else {
                 console.log("[Licensing] Machine binding verified.");
             }
