@@ -1,4 +1,6 @@
-import makeWASocket, { fetchLatestBaileysVersion, DisconnectReason, useMultiFileAuthState, type ConnectionState } from '@whiskeysockets/baileys';
+import _makeWASocket, { fetchLatestBaileysVersion, DisconnectReason, useMultiFileAuthState, type ConnectionState } from '@whiskeysockets/baileys';
+// Fix for Bun/ESBuild interop where default export is wrapped
+const makeWASocket = (_makeWASocket as any).default || _makeWASocket;
 import { useSQLiteAuthState } from './wa-auth';
 import db from './db';
 import { pino } from 'pino';
