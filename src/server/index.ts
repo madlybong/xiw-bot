@@ -661,6 +661,69 @@ app.post('/backend/contacts/import', authMiddleware, async (c) => {
   return c.json({ error: 'No file uploaded' }, 400);
 });
 
+// Logs API
+app.get('/backend/logs', authMiddleware, (c) => {
+  const payload = c.get('jwtPayload');
+  if (payload.role !== 'admin') return c.json({ error: 'Unauthorized' }, 403);
+
+  const logs = db.query(`
+        SELECT l.id, l.action, l.details, l.created_at, u.username 
+        FROM audit_logs l 
+        LEFT JOIN users u ON l.user_id = u.id 
+        ORDER BY l.created_at DESC LIMIT 100
+    `).all();
+  return c.json({ logs });
+});
+
+app.get('/backend/logs/export', authMiddleware, (c) => { // Renamed to /backend prefix
+  const payload = c.get('jwtPayload');
+  if (payload.role !== 'admin') return c.json({ error: 'Unauthorized' }, 403);
+
+  const { startDate, endDate, userId } = c.req.query();
+
+  let query = `
+        SELECT l.id, l.action, l.details, l.created_at, u.username 
+        FROM audit_logs l 
+        LEFT JOIN users u ON l.user_id = u.id 
+        WHERE 1=1
+    `;
+  const params: any = {};
+
+  if (startDate) {
+    query += ' AND l.created_at >= $start';
+    params.$start = startDate;
+  }
+  if (endDate) {
+    query += ' AND l.created_at <= $end';
+    params.$end = endDate + ' 23:59:59';
+  }
+  if (userId) {
+    query += ' AND l.user_id = $uid';
+    params.$uid = userId;
+  }
+
+  query += ' ORDER BY l.created_at DESC';
+
+  const logs = db.query(query).all(params) as any[];
+
+  const csvRows = ['ID,User,Action,Details,Timestamp'];
+  logs.forEach(log => {
+    csvRows.push([
+      log.id,
+      log.username || 'Unknown',
+      log.action,
+      `"${(log.details || '').replace(/"/g, '""')}"`,
+      log.created_at
+    ].join(','));
+  });
+
+  return c.text(csvRows.join('\n'), 200, {
+    'Content-Type': 'text/csv',
+    'Content-Disposition': 'attachment; filename="audit_logs.csv"'
+  });
+});
+
+
 // API Token Management (Rename to /backend/)
 app.get('/backend/tokens', authMiddleware, (c) => {
   const payload = c.get('jwtPayload');
