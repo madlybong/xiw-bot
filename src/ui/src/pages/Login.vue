@@ -61,7 +61,7 @@ const handleLogin = async () => {
                     <p class="text-body-1 text-medium-emphasis">Please sign in to your dashboard.</p>
                 </div>
 
-                <v-form @submit.prevent="handleLogin">
+                <v-form @submit.prevent="handleLogin" autocomplete="off">
                     <div class="mb-4">
                         <label class="text-caption font-weight-bold ml-1 mb-1 d-block text-medium-emphasis">USERNAME</label>
                         <v-text-field
@@ -74,6 +74,8 @@ const handleLogin = async () => {
                             color="primary"
                             hide-details="auto"
                             class="rounded-lg apple-input"
+                            autocomplete="off"
+                            name="username_xiw_bot"
                         ></v-text-field>
                     </div>
 
@@ -92,6 +94,8 @@ const handleLogin = async () => {
                             color="primary"
                             hide-details="auto"
                             class="rounded-lg apple-input"
+                            autocomplete="new-password"
+                            name="password_xiw_bot"
                         ></v-text-field>
                     </div>
 
@@ -125,6 +129,9 @@ const handleLogin = async () => {
     min-height: 100vh;
     background: #0f172a; /* Fallback */
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .gradient-bg {
@@ -137,13 +144,18 @@ const handleLogin = async () => {
                 radial-gradient(circle at 80% 20%, rgba(14, 165, 233, 0.4), transparent 40%),
                 radial-gradient(circle at 20% 80%, rgba(16, 185, 129, 0.4), transparent 40%);
     filter: blur(80px);
-    animation: gradientMove 20s ease infinite alternate;
+    animation: gradientMove 20s ease infinite alternate, colorCycle 60s linear infinite;
     z-index: 0;
 }
 
 @keyframes gradientMove {
     0% { transform: rotate(0deg) translate(0, 0); }
     100% { transform: rotate(45deg) translate(-20px, 20px); }
+}
+
+@keyframes colorCycle {
+    0% { filter: blur(80px) hue-rotate(0deg); }
+    100% { filter: blur(80px) hue-rotate(360deg); }
 }
 
 /* Glass Card */
