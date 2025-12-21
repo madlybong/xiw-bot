@@ -9,6 +9,10 @@ import { authMiddleware, createToken, JWT_SECRET } from './auth';
 import { waManager } from './wa';
 import { tokenManager } from './tokens';
 import { toDataURL } from 'qrcode';
+import { initializeLicense, getLicenseLimits, getLicenseStatus } from '../licensing/runtime';
+
+// [LICENSE] Boot Enforcement
+initializeLicense();
 
 // Simple password hashing (for demo purposes using Bun.hash, in prod use AccessControl/Argon2 properly)
 // We already have password_hash in DB
@@ -104,6 +108,11 @@ app.post('/api/auth/login', async (c) => {
   return c.json({ error: 'Invalid credentials' }, 401);
 });
 
+// [LICENSE] Status Endpoint
+app.get('/api/license', authMiddleware, (c) => {
+  return c.json(getLicenseStatus());
+});
+
 // User Management APIs
 app.get('/backend/users', authMiddleware, (c) => {
   // Check if admin
@@ -175,6 +184,15 @@ app.post('/backend/users', authMiddleware, async (c) => {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
   const { username, password, role, message_limit, limit_frequency, status } = body;
+
+  // [LICENSE] Check Agent Limits
+  if ((role === 'agent' || !role)) { // Default is agent
+    const limits = getLicenseLimits();
+    const currentAgents = (db.query('SELECT COUNT(*) as count FROM users WHERE role = "agent"').get() as any).count;
+    if (limits.max_agents !== -1 && currentAgents >= limits.max_agents) {
+      return c.json({ error: `License limit reached: Max Agents (${limits.max_agents})` }, 403);
+    }
+  }
 
   const hash = Bun.hash(password).toString();
   try {
@@ -259,6 +277,13 @@ app.post('/backend/accounts', authMiddleware, async (c) => {
     return c.json({ error: 'Invalid JSON body' }, 400);
   }
   const { name, config } = body;
+
+  // [LICENSE] Check Instance Limits
+  const limits = getLicenseLimits();
+  const currentInstances = (db.query('SELECT COUNT(*) as count FROM instances').get() as any).count;
+  if (limits.max_whatsapp_accounts !== -1 && currentInstances >= limits.max_whatsapp_accounts) {
+    return c.json({ error: `License limit reached: Max WhatsApp Accounts (${limits.max_whatsapp_accounts})` }, 403);
+  }
   try {
     db.query('INSERT INTO instances (name, config) VALUES ($name, $config)').run({ $name: name, $config: config });
     return c.json({ success: true });
@@ -291,6 +316,13 @@ app.post('/backend/wa/start/:id', authMiddleware, async (c) => {
 app.post('/backend/instances', authMiddleware, async (c) => {
   const { name } = await c.req.json();
   if (!name) return c.json({ error: 'Name is required' }, 400);
+
+  // [LICENSE] Check Instance Limits
+  const limits = getLicenseLimits();
+  const currentInstances = (db.query('SELECT COUNT(*) as count FROM instances').get() as any).count;
+  if (limits.max_whatsapp_accounts !== -1 && currentInstances >= limits.max_whatsapp_accounts) {
+    return c.json({ error: `License limit reached: Max WhatsApp Accounts (${limits.max_whatsapp_accounts})` }, 403);
+  }
 
   try {
     const info = db.query('INSERT INTO instances (name, status) VALUES (?1, ?2) RETURNING id').get(name, 'stopped') as any;
@@ -828,53 +860,13 @@ if (adminUserIndex !== -1 && adminPassIndex !== -1) {
   }
 }
 
-console.log('Server starting on port 3000');
+const PORT = parseInt(process.env.SERVER_PORT || "3000");
+console.log(`Server starting on port ${PORT}`);
 
 // --- Audit Logs Export ---
-app.get('/api/logs/export', authMiddleware, (c) => {
-  const payload = c.get('jwtPayload');
-  if (payload.role !== 'admin') return c.json({ error: 'Only admins can export logs' }, 403);
-
-  const { startDate, endDate, userId } = c.req.query();
-
-  let query = 'SELECT l.*, u.username FROM audit_logs l LEFT JOIN users u ON l.user_id = u.id WHERE 1=1';
-  const params: any = {};
-
-  if (startDate) {
-    query += ' AND l.created_at >= $startDate';
-    params.$startDate = startDate;
-  }
-  if (endDate) {
-    query += ' AND l.created_at <= $endDate';
-    params.$endDate = endDate;
-  }
-  if (userId) {
-    query += ' AND l.user_id = $userId';
-    params.$userId = userId;
-  }
-
-  query += ' ORDER BY l.created_at DESC';
-
-  const logs = db.query(query).all(params) as any[];
-
-  const csvRows = ['ID,User,Action,Details,Time'];
-  logs.forEach(l => {
-    csvRows.push([
-      l.id,
-      `"${l.username || 'Unknown'}"`,
-      `"${l.action}"`,
-      `"${JSON.stringify(l.details || {}).replace(/"/g, '""')}"`, // Escape quotes
-      l.created_at
-    ].join(','));
-  });
-
-  return c.text(csvRows.join('\n'), 200, {
-    'Content-Type': 'text/csv',
-    'Content-Disposition': 'attachment; filename="audit_logs.csv"'
-  });
-});
+// (Already defined above, but ensuring cleaner log output)
 
 export default {
-  port: 3000,
+  port: PORT,
   fetch: app.fetch,
 };
