@@ -11,6 +11,13 @@ import { tokenManager } from './tokens';
 import { toDataURL } from 'qrcode';
 import { initializeLicense, getLicenseLimits, getLicenseStatus } from '../licensing/runtime';
 
+// [CLI] Check for fingerprint request
+if (process.argv.includes('--get-fingerprint')) {
+  const { getMachineFingerprint } = require('../licensing/fingerprint');
+  console.log(getMachineFingerprint());
+  process.exit(0);
+}
+
 // [LICENSE] Boot Enforcement
 initializeLicense();
 
