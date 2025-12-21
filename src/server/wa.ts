@@ -1,4 +1,7 @@
-import { default as makeWASocket, DisconnectReason, useMultiFileAuthState, type ConnectionState } from '@whiskeysockets/baileys';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const makeWASocket = require('@whiskeysockets/baileys').default;
+import { DisconnectReason, useMultiFileAuthState, type ConnectionState } from '@whiskeysockets/baileys';
 import { useSQLiteAuthState } from './wa-auth';
 import db from './db';
 import { pino } from 'pino';
