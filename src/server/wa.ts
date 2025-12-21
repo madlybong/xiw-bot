@@ -1,4 +1,4 @@
-import makeWASocket, { DisconnectReason, useMultiFileAuthState, type ConnectionState } from '@whiskeysockets/baileys';
+import { default as makeWASocket, DisconnectReason, useMultiFileAuthState, type ConnectionState } from '@whiskeysockets/baileys';
 import { useSQLiteAuthState } from './wa-auth';
 import db from './db';
 import { pino } from 'pino';
