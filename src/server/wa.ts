@@ -27,6 +27,7 @@ export const waManager = {
         }
 
         const { state, saveCreds } = await useSQLiteAuthState(id);
+        console.log(`[WA:${id}] Session state loaded. Has creds: ${!!state.creds}, Keys loaded: ${Object.keys(state.keys).length > 0}`);
 
         const sock = makeWASocket({
             auth: state,

@@ -158,6 +158,17 @@ const getStatusColor = (status: string) => {
                     >
                         Start Session
                     </v-btn>
+
+                    <!-- Add Reset Button for Disconnected/Stuck states -->
+                    <v-btn
+                         v-if="inst.status === 'disconnected'"
+                         variant="text"
+                         color="warning"
+                         size="small"
+                         @click="stopInstance(inst.id)"
+                    >
+                        Reset
+                    </v-btn>
                     
                     <v-btn 
                         v-if="inst.status === 'connecting' && inst.qr" 
