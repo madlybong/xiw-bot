@@ -420,6 +420,30 @@ app.get('/api/wa/me', authMiddleware, (c) => {
   });
 });
 
+// Helper: Log Action & Auto-Save Contact
+const logAndSave = (userId: number, type: string, to: string, details: any) => {
+  try {
+    // 1. Audit Log
+    db.query('INSERT INTO audit_logs (user_id, action, details) VALUES ($uid, $act, $det)').run({
+      $uid: userId,
+      $act: `send_${type}`,
+      $det: JSON.stringify({ to, ...details })
+    });
+
+    // 2. Auto-save Contact
+    const phone = to.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+    db.query('INSERT OR IGNORE INTO contacts (name, phone, source) VALUES ($name, $phone, "auto")').run({
+      $name: phone,
+      $phone: phone
+    });
+
+    // 3. Update Usage
+    db.query('UPDATE users SET message_usage = message_usage + 1 WHERE id = $id').run({ $id: userId });
+  } catch (e) {
+    console.error('Log/Save API Error:', e);
+  }
+};
+
 // Message Sending APIs
 app.post('/api/wa/send/text/:id', authMiddleware, async (c) => {
   const id = c.req.param('id');
@@ -432,9 +456,8 @@ app.post('/api/wa/send/text/:id', authMiddleware, async (c) => {
   const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
   await session.socket.sendMessage(jid, { text: message });
 
-  // Log usage
   const user = c.get('jwtPayload');
-  db.query('UPDATE users SET message_usage = message_usage + 1 WHERE id = $id').run({ $id: user.id });
+  logAndSave(user.id, 'text', to, { message });
 
   return c.json({ success: true });
 });
@@ -454,7 +477,89 @@ app.post('/api/wa/send/image/:id', authMiddleware, async (c) => {
   });
 
   const user = c.get('jwtPayload');
-  db.query('UPDATE users SET message_usage = message_usage + 1 WHERE id = $id').run({ $id: user.id });
+  logAndSave(user.id, 'image', to, { url, caption });
+
+  return c.json({ success: true });
+});
+
+app.post('/api/wa/send/video/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id');
+  const session = waManager.getSession(id);
+  if (!session) return c.json({ error: 'Session not found/active' }, 404);
+
+  const { to, url, caption, gifPlayback } = await c.req.json();
+  if (!to || !url) return c.json({ error: 'Missing to/url' }, 400);
+
+  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+  await session.socket.sendMessage(jid, {
+    video: { url },
+    caption: caption || '',
+    gifPlayback: !!gifPlayback
+  });
+
+  const user = c.get('jwtPayload');
+  logAndSave(user.id, 'video', to, { url, caption });
+
+  return c.json({ success: true });
+});
+
+app.post('/api/wa/send/audio/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id');
+  const session = waManager.getSession(id);
+  if (!session) return c.json({ error: 'Session not found/active' }, 404);
+
+  const { to, url, ptt } = await c.req.json();
+  if (!to || !url) return c.json({ error: 'Missing to/url' }, 400);
+
+  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+  await session.socket.sendMessage(jid, {
+    audio: { url },
+    mimetype: 'audio/mp4',
+    ptt: !!ptt
+  });
+
+  const user = c.get('jwtPayload');
+  logAndSave(user.id, 'audio', to, { url, ptt });
+
+  return c.json({ success: true });
+});
+
+app.post('/api/wa/send/document/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id');
+  const session = waManager.getSession(id);
+  if (!session) return c.json({ error: 'Session not found/active' }, 404);
+
+  const { to, url, filename, mimetype } = await c.req.json();
+  if (!to || !url) return c.json({ error: 'Missing to/url' }, 400);
+
+  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+  await session.socket.sendMessage(jid, {
+    document: { url },
+    mimetype: mimetype || 'application/octet-stream',
+    fileName: filename || 'document'
+  });
+
+  const user = c.get('jwtPayload');
+  logAndSave(user.id, 'document', to, { url, filename });
+
+  return c.json({ success: true });
+});
+
+app.post('/api/wa/send/location/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id');
+  const session = waManager.getSession(id);
+  if (!session) return c.json({ error: 'Session not found/active' }, 404);
+
+  const { to, latitude, longitude, address } = await c.req.json();
+  if (!to || !latitude || !longitude) return c.json({ error: 'Missing to/lat/long' }, 400);
+
+  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+  await session.socket.sendMessage(jid, {
+    location: { degreesLatitude: latitude, degreesLongitude: longitude, address: address }
+  });
+
+  const user = c.get('jwtPayload');
+  logAndSave(user.id, 'location', to, { latitude, longitude });
 
   return c.json({ success: true });
 });

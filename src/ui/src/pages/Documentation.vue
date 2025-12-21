@@ -79,6 +79,84 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
             vb: `Dim json As String = "{""to"": ""..."", ""url"": ""..."", ""caption"": ""...""}"
 ' ... send request ...`
         }
+    },
+    {
+        method: 'POST',
+        url: '/api/wa/send/video/:instance_id',
+        title: 'Send Video',
+        desc: 'Send a video (MP4) with optional caption and GIF playback mode.',
+        body: { to: '1234567890', url: 'https://example.com/video.mp4', caption: 'Watch this', gifPlayback: false },
+        code: {
+            curl: `curl -X POST ${host}/api/wa/send/video/1 \\
+  -H "Authorization: Bearer YOUR_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"to": "1234567890", "url": "https://example.com/video.mp4", "caption": "Watch this"}'`,
+            node: `// Body
+{
+    to: '1234567890',
+    url: 'https://example.com/video.mp4',
+    caption: 'Watch this',
+    gifPlayback: false
+}`
+        }
+    },
+    {
+        method: 'POST',
+        url: '/api/wa/send/audio/:instance_id',
+        title: 'Send Audio (Voice)',
+        desc: 'Send an audio file or voice note (PTT).',
+        body: { to: '1234567890', url: 'https://example.com/audio.mp3', ptt: true },
+        code: {
+            curl: `curl -X POST ${host}/api/wa/send/audio/1 \\
+  -H "Authorization: Bearer YOUR_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"to": "1234567890", "url": "https://example.com/audio.mp3", "ptt": true}'`,
+            node: `// Body
+{
+    to: '1234567890',
+    url: 'https://example.com/audio.mp3',
+    ptt: true // true = Voice Note, false = Audio File
+}`
+        }
+    },
+    {
+        method: 'POST',
+        url: '/api/wa/send/document/:instance_id',
+        title: 'Send Document',
+        desc: 'Send a file/document.',
+        body: { to: '1234567890', url: 'https://example.com/file.pdf', filename: 'invoice.pdf' },
+        code: {
+            curl: `curl -X POST ${host}/api/wa/send/video/1 \\
+  -H "Authorization: Bearer YOUR_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"to": "1234567890", "url": "https://example.com/file.pdf", "filename": "invoice.pdf"}'`,
+            node: `// Body
+{
+    to: '1234567890',
+    url: 'https://example.com/file.pdf',
+    filename: 'invoice.pdf'
+}`
+        }
+    },
+    {
+        method: 'POST',
+        url: '/api/wa/send/location/:instance_id',
+        title: 'Send Location',
+        desc: 'Send a geo-location.',
+        body: { to: '1234567890', latitude: 24.123, longitude: 55.123, address: 'Burj Khalifa' },
+        code: {
+            curl: `curl -X POST ${host}/api/wa/send/location/1 \\
+  -H "Authorization: Bearer YOUR_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"to": "1234567890", "latitude": 24.123, "longitude": 55.123, "address": "Burj Khalifa"}'`,
+            node: `// Body
+{
+    to: '1234567890',
+    latitude: 24.123,
+    longitude: 55.123,
+    address: 'My Location'
+}`
+        }
     }
 ];
 </script>
