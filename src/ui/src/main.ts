@@ -11,7 +11,6 @@ import 'vuetify/styles'
 // Pages
 import Login from './pages/Login.vue' // Will create next
 import Dashboard from './pages/Dashboard.vue' // Will create next
-import Contacts from './pages/Contacts.vue' // Will create next
 import Contacts from './pages/Contacts.vue'
 import AuditLog from './pages/AuditLog.vue'
 import Documentation from './pages/Documentation.vue'
