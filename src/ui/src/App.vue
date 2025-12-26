@@ -12,54 +12,53 @@ const router = useRouter();
 const theme = useTheme();
 
 const checkAuth = () => {
-    auth.value = !!localStorage.getItem('token');
+  auth.value = !!localStorage.getItem('token');
 };
 
 const fetchVersion = async () => {
-   if(auth.value) {
-       try {
-           const res = await fetch('/api/health');
-           const data = await res.json();
-           version.value = data.version;
-       } catch(e) {}
-   }
+  if (auth.value) {
+    try {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      version.value = data.version;
+    } catch (e) { }
+  }
 }
 
 const toggleTheme = () => {
-    const newVal = theme.global.name.value === 'dark' ? 'light' : 'dark';
-    theme.global.name.value = newVal;
-    localStorage.setItem('theme', newVal);
+  const newVal = theme.global.name.value === 'dark' ? 'light' : 'dark';
+  // Use recommended API to avoid warnings
+  (theme as any).change(newVal);
+  localStorage.setItem('theme', newVal);
 };
 
 const logout = () => {
-    localStorage.removeItem('token');
-    auth.value = false;
-    router.push('/login');
+  localStorage.removeItem('token');
+  auth.value = false;
+  router.push('/login');
 };
 
 onMounted(() => {
-    checkAuth();
-    fetchVersion();
-    
-    // Load saved theme
-    const saved = localStorage.getItem('theme');
-    if (saved) {
-        theme.global.name.value = saved;
-    }
+  checkAuth();
+  fetchVersion();
 
-    window.addEventListener('storage', checkAuth);
-    // Custom event dispatch from Login
-    window.addEventListener('auth-change', checkAuth);
+  // Load saved theme
+  const saved = localStorage.getItem('theme');
+  if (saved) {
+    (theme as any).change(saved);
+  }
+
+  window.addEventListener('storage', checkAuth);
+  // Custom event dispatch from Login
+  window.addEventListener('auth-change', checkAuth);
 });
 </script>
 
 <template>
-  <v-app class="app-container">
-    <div class="gradient-bg"></div>
-
-    <v-app-bar v-if="auth" class="glass-app-bar" elevation="0">
+  <v-app>
+    <v-app-bar v-if="auth" color="primary">
       <v-app-bar-nav-icon @click.stop="drawer = !drawer"></v-app-bar-nav-icon>
-      <v-toolbar-title class="font-weight-bold text-primary">XiW Bot</v-toolbar-title>
+      <v-toolbar-title class="font-weight-bold">XiW Bot</v-toolbar-title>
       <v-spacer></v-spacer>
       <v-btn icon @click="toggleTheme">
         <v-icon>{{ theme.global.name.value === 'dark' ? 'mdi-weather-night' : 'mdi-weather-sunny' }}</v-icon>
@@ -72,46 +71,29 @@ onMounted(() => {
       </v-btn>
     </v-app-bar>
 
-    <v-navigation-drawer v-if="auth" v-model="drawer" class="glass-nav" elevation="0">
+    <v-navigation-drawer v-if="auth" v-model="drawer">
       <div class="pa-4 text-center">
         <v-avatar color="primary" variant="tonal" size="64" class="mb-2">
-            <v-icon size="32">mdi-robot-excited</v-icon>
+          <v-icon size="32">mdi-robot-excited</v-icon>
         </v-avatar>
         <div class="text-subtitle-1 font-weight-bold">XiW Bot</div>
         <div class="text-caption text-medium-emphasis">v{{ version }}</div>
       </div>
-      <v-divider class="mb-2 mx-4 border-opacity-25"></v-divider>
+      <v-divider></v-divider>
 
       <v-list density="compact" nav>
-        <v-list-item to="/dashboard" prepend-icon="mdi-view-dashboard" title="Dashboard" active-color="primary" rounded="xl"></v-list-item>
-        <v-list-item to="/contacts" prepend-icon="mdi-contacts" title="Address Book" active-color="primary" rounded="xl"></v-list-item>
-        <v-list-item to="/logs" prepend-icon="mdi-history" title="Audit Logs" active-color="primary" rounded="xl"></v-list-item>
-        <v-list-item to="/users" prepend-icon="mdi-account-group" title="Users" active-color="primary" rounded="xl"></v-list-item>
-        <v-list-item to="/license" prepend-icon="mdi-license" title="License" active-color="primary" rounded="xl"></v-list-item>
-        <v-list-item to="/docs" prepend-icon="mdi-file-code" title="API Docs" active-color="primary" rounded="xl"></v-list-item>
+        <v-list-item to="/dashboard" prepend-icon="mdi-view-dashboard" title="Dashboard" color="primary"></v-list-item>
+        <v-list-item to="/contacts" prepend-icon="mdi-contacts" title="Address Book" color="primary"></v-list-item>
+        <v-list-item to="/logs" prepend-icon="mdi-history" title="Audit Logs" color="primary"></v-list-item>
+        <v-list-item to="/users" prepend-icon="mdi-account-group" title="Users" color="primary"></v-list-item>
+        <v-list-item to="/license" prepend-icon="mdi-license" title="License" color="primary"></v-list-item>
+        <v-list-item to="/docs" prepend-icon="mdi-file-code" title="API Docs" color="primary"></v-list-item>
       </v-list>
     </v-navigation-drawer>
 
-    <v-main class="bg-transparent">
+    <v-main>
       <router-view></router-view>
       <Footer v-if="auth" />
     </v-main>
   </v-app>
 </template>
-
-<style>
-/* Global overrides to ensure transparency */
-html, body, .v-application {
-    background: transparent !important;
-}
-.app-container {
-    background: #0d0d0f; /* Fallback for gradient */
-}
-</style>
-
-<style>
-/* Global overrides if needed */
-body {
-    background-color: #0d0d0f;
-}
-</style>

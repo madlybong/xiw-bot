@@ -113,4 +113,21 @@ try {
   db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_one_admin ON users(role) WHERE role = 'admin'`);
 } catch (e) { }
 
+// Seed Default Admin
+try {
+  const userCount = (db.query('SELECT COUNT(*) as count FROM users').get() as any).count;
+  if (userCount === 0) {
+    console.log('[DB] Seeding default admin account...');
+    const adminHash = Bun.hash('admin').toString();
+    db.run('INSERT INTO users (username, password_hash, role, message_limit, limit_frequency, status) VALUES ($u, $p, $r, -1, "unlimited", "active")', {
+      $u: 'admin',
+      $p: adminHash,
+      $r: 'admin'
+    });
+    console.log('[DB] Default admin created: admin / admin');
+  }
+} catch (e) {
+  console.error('[DB] Failed to seed admin:', e);
+}
+
 export default db;

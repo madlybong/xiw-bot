@@ -20,6 +20,28 @@ import { resolve } from "path";
 
 export const initializeLicense = () => {
     console.log("[Licensing] Initializing...");
+
+    // [DEV] Bypass
+    if (process.env.NODE_ENV === 'development') {
+        console.warn("\n!!! DEVELOPMENT MODE: LICENSE CHECK BYPASSED !!!");
+        activeLicense = {
+            product: "xiw-bot",
+            client: "Developer (Bypass)",
+            license_id: "DEV-UNLIMITED",
+            issued_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 31536000000).toISOString(), // +1 Year
+            billing_cycle: "development",
+            machine: { fingerprint: null, bound: false },
+            limits: {
+                max_whatsapp_accounts: -1,
+                max_agents: -1
+            },
+            version: 2
+        };
+        console.log("[Licensing] Active License: Developer Unlimited");
+        return;
+    }
+
     let key = process.env.XIWBOT_LICENSE;
 
     // Try loading from file if env var is missing

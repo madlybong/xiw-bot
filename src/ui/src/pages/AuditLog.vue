@@ -5,7 +5,7 @@ const startDate = ref('');
 const endDate = ref('');
 const userId = ref('');
 const loading = ref(false);
-const logs = ref([]);
+const logs = ref<any[]>([]);
 const headers = [
     { title: 'Time', key: 'created_at' },
     { title: 'User', key: 'username' },
@@ -16,7 +16,7 @@ const headers = [
 const fetchLogs = async () => {
     try {
         const res = await fetch('/backend/logs', {
-             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         if (res.ok) {
             const data = await res.json();
@@ -65,64 +65,55 @@ onMounted(() => {
 </script>
 
 <template>
-  <v-container>
-     <div class="mb-6">
-        <h1 class="text-h4 font-weight-bold">Audit Logs</h1>
-        <p class="text-medium-emphasis">System activity logs and detailed usage history.</p>
-    </div>
+    <v-container>
+        <div class="mb-6">
+            <h1 class="text-h4 font-weight-bold">Audit Logs</h1>
+            <p class="text-medium-emphasis">System activity logs and detailed usage history.</p>
+        </div>
 
-    <!-- Filter/Export Card -->
-    <v-card class="mb-6 glass-card" elevation="0">
-        <v-card-title>Filter & Export</v-card-title>
-        <v-card-text>
-            <v-row dense>
-                <v-col cols="12" md="4">
-                    <v-text-field v-model="startDate" type="date" label="Start Date" variant="outlined" class="apple-input"></v-text-field>
-                </v-col>
-                <v-col cols="12" md="4">
-                    <v-text-field v-model="endDate" type="date" label="End Date" variant="outlined" class="apple-input"></v-text-field>
-                </v-col>
-                 <v-col cols="12" md="4">
-                    <v-text-field v-model="userId" label="User ID (Optional)" variant="outlined" class="apple-input"></v-text-field>
-                </v-col>
-            </v-row>
-        </v-card-text>
-        <v-card-actions class="justify-end pr-4 pb-4">
-             <v-btn 
-                color="primary" 
-                prepend-icon="mdi-download" 
-                class="shadow-button"
-                variant="flat"
-                :loading="loading"
-                @click="handleExport"
-            >
-                Export CSV
-            </v-btn>
-        </v-card-actions>
-    </v-card>
+        <!-- Filter/Export Card -->
+        <v-card class="mb-6" border>
+            <v-card-title>Filter & Export</v-card-title>
+            <v-card-text>
+                <v-row dense>
+                    <v-col cols="12" md="4">
+                        <v-text-field v-model="startDate" type="date" label="Start Date"
+                            variant="outlined"></v-text-field>
+                    </v-col>
+                    <v-col cols="12" md="4">
+                        <v-text-field v-model="endDate" type="date" label="End Date" variant="outlined"></v-text-field>
+                    </v-col>
+                    <v-col cols="12" md="4">
+                        <v-text-field v-model="userId" label="User ID (Optional)" variant="outlined"></v-text-field>
+                    </v-col>
+                </v-row>
+            </v-card-text>
+            <v-card-actions class="justify-end pr-4 pb-4">
+                <v-btn color="primary" prepend-icon="mdi-download" variant="flat" :loading="loading"
+                    @click="handleExport">
+                    Export CSV
+                </v-btn>
+            </v-card-actions>
+        </v-card>
 
-    <!-- Logs Table -->
-    <v-card class="glass-card" elevation="0">
-        <v-card-title>Recent Activity</v-card-title>
-        <v-data-table
-            :headers="headers"
-            :items="logs"
-            :items-per-page="10"
-            class="glass-table bg-transparent"
-        >
-            <template v-slot:item.created_at="{ item }">
-                {{ new Date(item.created_at).toLocaleString() }}
-            </template>
-            <template v-slot:item.username="{ item }">
-                <v-chip size="small" :color="item.username === 'admin' ? 'purple' : 'blue'" label variant="tonal" class="font-weight-bold">
-                    {{ item.username }}
-                </v-chip>
-            </template>
-        </v-data-table>
-    </v-card>
+        <!-- Logs Table -->
+        <v-card border>
+            <v-card-title>Recent Activity</v-card-title>
+            <v-data-table :headers="headers" :items="logs" :items-per-page="10">
+                <template v-slot:item.created_at="{ item }">
+                    {{ new Date(item.created_at).toLocaleString() }}
+                </template>
+                <template v-slot:item.username="{ item }">
+                    <v-chip size="small" :color="item.username === 'admin' ? 'purple' : 'blue'" label variant="tonal"
+                        class="font-weight-bold">
+                        {{ item.username }}
+                    </v-chip>
+                </template>
+            </v-data-table>
+        </v-card>
 
-     <v-alert type="info" variant="tonal" class="mt-4" density="compact">
-        Note: The visible table shows the last 100 logs. Use "Export CSV" for full history.
-    </v-alert>
-  </v-container>
+        <v-alert type="info" variant="tonal" class="mt-4" density="compact">
+            Note: The visible table shows the last 100 logs. Use "Export CSV" for full history.
+        </v-alert>
+    </v-container>
 </template>

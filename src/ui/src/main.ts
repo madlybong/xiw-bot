@@ -7,11 +7,10 @@ import * as directives from 'vuetify/directives'
 import { aliases, mdi } from 'vuetify/iconsets/mdi'
 import '@mdi/font/css/materialdesignicons.css'
 import 'vuetify/styles'
-import './styles/glass.css' // Global Glass Theme
 
 // Pages
-import Login from './pages/Login.vue' // Will create next
-import Dashboard from './pages/Dashboard.vue' // Will create next
+import Login from './pages/Login.vue'
+import Dashboard from './pages/Dashboard.vue'
 import Contacts from './pages/Contacts.vue'
 import AuditLog from './pages/AuditLog.vue'
 import Documentation from './pages/Documentation.vue'
@@ -22,17 +21,7 @@ const vuetify = createVuetify({
     components,
     directives,
     theme: {
-        defaultTheme: 'dark',
-        themes: {
-            dark: {
-                colors: {
-                    primary: '#7f5af0',
-                    secondary: '#2cb67d',
-                    background: '#0d0d0f',
-                    surface: '#16161a',
-                }
-            }
-        }
+        defaultTheme: 'dark'
     },
     icons: {
         defaultSet: 'mdi',
