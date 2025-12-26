@@ -18,6 +18,12 @@ if (process.argv.includes('--get-fingerprint')) {
   process.exit(0);
 }
 
+// [DEV] Bypass Check (Must be before License Init)
+if (process.argv.includes('--dev')) {
+  process.env.NODE_ENV = 'development';
+  console.log('!!! STARTING IN DEVELOPMENT MODE (LICENSE BYPASS ACTIVE) !!!');
+}
+
 // [LICENSE] Boot Enforcement
 initializeLicense();
 
@@ -82,8 +88,9 @@ app.use('*', logger());
 import pkg from '../../package.json';
 
 app.get('/api/health', (c) => {
-  return c.json({ status: 'ok', version: '0.9.4', db: 'connected' });
+  return c.json({ status: 'ok', version: '1.1.1', db: 'connected' });
 });
+
 
 app.post('/api/auth/login', async (c) => {
   let body;
