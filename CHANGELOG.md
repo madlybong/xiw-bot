@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.3.3] - 2025-12-27
+
+### Added
+- **Release Engineering**: Hardened build pipeline (Mandatory UI rebuilds).
+- **Features**: UI/Backend version sanity check with mismatch warning.
+- **Automation**: One-command release helper (`bun run release`).
+- **CI**: Bulletproof GitHub Actions workflow for consistent binary builds.
+
+## [1.3.2] - 2025-12-27
+
+### Added
+- **UI**: Added per-instance Settings Panel in Dashboard.
+- **UI**: Exposed toggle for 24-hour reply window enforcement.
+- **UI**: Displayed operational metadata (Status, JID, ID) in settings.
+
+## [1.3.1] - 2025-12-27
+
+### Added
+- **Features**:
+    - **Optional 24-hour Reply Window**: Per-instance configuration flag (`reply_window_enforced`) to toggle MPE enforcement. Defaults to `true` (Enforced).
+    - **Dashboard**: Added Instance ID display with copy-to-clipboard button.
+    - **Database**: Implemented safe migration system (`schema_meta`) for reliable upgrades.
+
+### Changed
+- **API**: Added `PATCH /backend/instances/:id` for instance configuration.
+- **MPE**: `checkWindow` rule now respects instance configuration.
+
 ## [1.3.0] - 2025-12-27
 
 ### Removed

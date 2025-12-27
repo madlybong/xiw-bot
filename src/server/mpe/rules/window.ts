@@ -7,7 +7,12 @@ export const checkWindow = (ctx: MessageContext): PolicyDecision => {
         return { allowed: true };
     }
 
-    // 2. For standard messages, check 24h window
+    // 2. Check Enforcement Flag (v1.3.1)
+    if (ctx.replyWindowEnforced === false) {
+        return { allowed: true };
+    }
+
+    // 3. For standard messages, check 24h window
     // Normalize phone
     const phone = ctx.to.replace('@s.whatsapp.net', '').replace(/\D/g, '');
 

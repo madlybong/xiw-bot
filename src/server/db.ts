@@ -132,6 +132,68 @@ const operationsMigrations = [
   'ALTER TABLE contacts ADD COLUMN last_inbound_at DATETIME'
 ];
 
+// [MIGRATION SYSTEM v1.3.1]
+db.run(`
+  CREATE TABLE IF NOT EXISTS schema_meta (
+    version INTEGER NOT NULL,
+    applied_at TEXT NOT NULL
+  );
+`);
+
+const safeMigrations = [
+  {
+    version: 1,
+    name: 'Add reply_window_enforced to instances',
+    up: (d: Database) => {
+      try {
+        d.run('ALTER TABLE instances ADD COLUMN reply_window_enforced INTEGER NOT NULL DEFAULT 1');
+      } catch (e: any) {
+        if (!e.message.includes('duplicate column')) throw e;
+      }
+    }
+  }
+];
+
+// Run Migrations
+const getStringVersion = () => {
+  try {
+    const row = db.query('SELECT version FROM schema_meta ORDER BY version DESC LIMIT 1').get() as any;
+    return row ? row.version : 0;
+  } catch { return 0; }
+}
+
+const currentVersion = getStringVersion();
+console.log(`[DB] Current Schema Version: ${currentVersion}`);
+
+const runSafeMigrations = () => {
+  if (currentVersion >= safeMigrations.length) return;
+
+  console.log('[DB] Running pending migrations...');
+  const pending = safeMigrations.filter(m => m.version > currentVersion);
+
+  for (const m of pending) {
+    console.log(`[DB] Applying v${m.version}: ${m.name}`);
+    const tx = db.transaction(() => {
+      m.up(db);
+      const now = new Date().toISOString();
+      db.run('INSERT INTO schema_meta (version, applied_at) VALUES ($v, $t)', { $v: m.version, $t: now });
+    });
+
+    try {
+      tx();
+    } catch (e) {
+      console.error(`[DB] FATAL: Migration v${m.version} failed! Aborting startup.`);
+      console.error(e);
+      process.exit(1);
+    }
+  }
+  console.log('[DB] Migrations applied successfully.');
+};
+
+runSafeMigrations();
+
+// Legacy / Loose Migrations (Keep for older DBs not fully tracked yet)
+// We wrap these in try-catch as before, but the safe system above is the primary for new features.
 for (const query of [...columnsToAdd, ...securityMigrations, ...operationsMigrations]) {
   try {
     db.run(query);

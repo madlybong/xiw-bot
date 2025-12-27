@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { useTheme } from 'vuetify';
 import QRCode from 'qrcode';
 
 interface Instance {
@@ -7,11 +8,15 @@ interface Instance {
     name: string;
     status: string;
     qr: string | null;
+    qr: string | null;
+    reply_window_enforced: boolean;
     user?: { id: string; name: string };
 }
 
+
 const instances = ref<Instance[]>([]);
 const loading = ref(false);
+const theme = useTheme();
 const qrDialog = ref(false);
 const selectedQr = ref('');
 const selectedName = ref('');
@@ -158,7 +163,43 @@ const openTerminal = (id: number, name: string) => {
 const closeTerminal = () => {
     if (activeStream) activeStream.close();
     activeStream = null;
+    activeStream = null;
     terminalDialog.value = false;
+};
+
+// Settings
+const settingsDialog = ref(false);
+const selectedInstance = ref<Instance | null>(null);
+
+const openSettings = (inst: Instance) => {
+    selectedInstance.value = inst;
+    settingsDialog.value = true;
+};
+
+const toggleReplyWindow = async (val: boolean | null) => {
+    if (!selectedInstance.value) return;
+    try {
+        const res = await fetch(`/backend/instances/${selectedInstance.value.id}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({ reply_window_enforced: !!val })
+        });
+
+        if (res.ok) {
+            snackbarText.value = `Policy updated: ${!!val ? 'Enforced' : 'Relaxed'}`;
+            snackbar.value = true;
+        } else {
+            // Revert on error
+            selectedInstance.value.reply_window_enforced = !val;
+            alert('Failed to update policy');
+        }
+    } catch (e) {
+        selectedInstance.value.reply_window_enforced = !val;
+        console.error(e);
+    }
 };
 
 onMounted(() => {
@@ -179,6 +220,15 @@ const getStatusColor = (status: string) => {
         default: return 'error';
     }
 }
+
+const snackbar = ref(false);
+const snackbarText = ref('');
+
+const copyId = (id: number) => {
+    navigator.clipboard.writeText(String(id));
+    snackbarText.value = `ID ${id} copied to clipboard`;
+    snackbar.value = true;
+};
 </script>
 
 <template>
@@ -203,6 +253,8 @@ const getStatusColor = (status: string) => {
                         <template v-slot:append>
                             <v-btn icon="mdi-delete" variant="text" size="small" color="error"
                                 @click="deleteInstance(inst.id)"></v-btn>
+                            <v-btn icon="mdi-cog" variant="text" size="small" color="secondary"
+                                @click="openSettings(inst)"></v-btn>
                         </template>
                         <v-card-title class="font-weight-bold">{{ inst.name }}</v-card-title>
                         <v-card-subtitle class="mt-1">
@@ -211,11 +263,21 @@ const getStatusColor = (status: string) => {
                                 <v-icon start size="x-small" icon="mdi-circle-medium"></v-icon>
                                 {{ inst.status }}
                             </v-chip>
+                            <div class="d-flex align-center mt-2 text-caption text-medium-emphasis">
+                                <span class="font-weight-bold mr-1">ID:</span>
+                                <span class="text-mono" style="font-family: monospace;">{{ inst.id }}</span>
+                                <v-btn icon="mdi-content-copy" variant="text" size="x-small" density="compact"
+                                    class="ml-1" color="primary" @click="copyId(inst.id)"></v-btn>
+                            </div>
                         </v-card-subtitle>
                     </v-card-item>
 
+
                     <v-card-text class="flex-grow-1">
-                        <div v-if="inst.user" class="d-flex align-center mt-4 pa-3 bg-surface-variant rounded-lg">
+                        <div v-if="inst.user" :class="[
+                            'd-flex align-center mt-4 pa-3 rounded-lg',
+                            theme.global.current.value.dark ? 'bg-grey-darken-3' : 'bg-grey-lighten-4'
+                        ]">
                             <v-icon size="small" class="mr-2" color="success">mdi-account-check</v-icon>
                             <div>
                                 <div class="text-body-2 font-weight-bold">{{ inst.user.name }}</div>
@@ -284,12 +346,67 @@ const getStatusColor = (status: string) => {
             </v-card>
         </v-dialog>
 
+        <!-- Settings Dialog -->
+        <v-dialog v-model="settingsDialog" max-width="500">
+            <v-card>
+                <v-card-title>Instance Settings</v-card-title>
+                <v-card-text>
+                    <div class="mb-4">
+                        <div class="text-subtitle-2 font-weight-bold mb-1">Status Information</div>
+                        <v-table density="compact" class="border rounded">
+                            <tbody>
+                                <tr>
+                                    <td class="text-medium-emphasis">Instance ID</td>
+                                    <td>
+                                        <div class="d-flex align-center">
+                                            <span class="font-monospace">{{ selectedInstance?.id }}</span>
+                                            <v-btn icon="mdi-content-copy" variant="text" size="x-small" color="primary"
+                                                class="ml-2"
+                                                @click="selectedInstance && copyId(selectedInstance.id)"></v-btn>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-medium-emphasis">Status</td>
+                                    <td>
+                                        <v-chip size="x-small" :color="getStatusColor(selectedInstance?.status || '')"
+                                            label>
+                                            {{ selectedInstance?.status }}
+                                        </v-chip>
+                                    </td>
+                                </tr>
+                                <tr v-if="selectedInstance?.user">
+                                    <td class="text-medium-emphasis">Connected As</td>
+                                    <td>{{ selectedInstance.user.name }} ({{ selectedInstance.user.id }})</td>
+                                </tr>
+                            </tbody>
+                        </v-table>
+                    </div>
+
+                    <v-divider class="mb-4"></v-divider>
+
+                    <div class="text-subtitle-2 font-weight-bold mb-2">Policy Configuration</div>
+                    <v-switch v-if="selectedInstance" v-model="selectedInstance.reply_window_enforced" color="primary"
+                        label="Enforce 24-Hour Reply Window" @update:model-value="toggleReplyWindow" hide-details
+                        density="compact"></v-switch>
+                    <div class="text-caption text-medium-emphasis mt-1">
+                        When enabled, outbound messages are allowed only if the contact has sent a message within the
+                        last 24 hours.
+                    </div>
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer></v-spacer>
+                    <v-btn color="primary" @click="settingsDialog = false">Close</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
         <!-- Terminal Dialog -->
         <v-dialog v-model="terminalDialog" persistent max-width="800" width="100%">
             <v-card theme="dark" class="terminal-card">
                 <v-card-title class="d-flex align-center py-2 px-4 bg-grey-darken-4">
                     <span class="text-caption font-weight-bold font-monospace text-medium-emphasis">>_ {{ selectedName
-                    }}</span>
+                        }}</span>
                     <v-spacer></v-spacer>
                     <v-btn icon="mdi-close" size="x-small" variant="text" @click="closeTerminal"></v-btn>
                 </v-card-title>
@@ -313,6 +430,13 @@ const getStatusColor = (status: string) => {
         </v-dialog>
 
     </v-container>
+
+    <v-snackbar v-model="snackbar" :timeout="2000" color="success">
+        {{ snackbarText }}
+        <template v-slot:actions>
+            <v-btn color="white" variant="text" @click="snackbar = false">Close</v-btn>
+        </template>
+    </v-snackbar>
 </template>
 
 <style scoped>

@@ -4,12 +4,31 @@ import { useRouter } from 'vue-router';
 import { useTheme } from 'vuetify';
 import Footer from './components/Footer.vue';
 
+// Globals
+declare const __APP_VERSION__: string;
+
 // Navbar Logic Inline for now or separate component
 const drawer = ref(true);
 const auth = ref(false);
-const version = ref('');
 const router = useRouter();
 const theme = useTheme();
+
+// Version Check
+const versionMismatch = ref(false);
+const backendVersion = ref('');
+
+const checkVersionMismatch = async () => {
+  try {
+    const res = await fetch('/api/version');
+    if (res.ok) {
+      const data = await res.json();
+      backendVersion.value = data.version;
+      if (data.version !== __APP_VERSION__) {
+        versionMismatch.value = true;
+      }
+    }
+  } catch (e) { }
+};
 
 const checkAuth = () => {
   auth.value = !!localStorage.getItem('token');
@@ -40,7 +59,7 @@ const logout = () => {
 
 onMounted(() => {
   checkAuth();
-  fetchVersion();
+  checkVersionMismatch();
 
   // Load saved theme
   const saved = localStorage.getItem('theme');
@@ -56,6 +75,10 @@ onMounted(() => {
 
 <template>
   <v-app>
+    <v-system-bar v-if="versionMismatch" color="warning" class="justify-center font-weight-bold">
+      <v-icon start icon="mdi-alert" class="mr-2"></v-icon>
+      Version Mismatch: UI ({{ __APP_VERSION__ }}) != Backend ({{ backendVersion }}). Please refresh or update.
+    </v-system-bar>
     <v-app-bar v-if="auth" color="primary">
       <v-app-bar-nav-icon @click.stop="drawer = !drawer"></v-app-bar-nav-icon>
       <v-toolbar-title class="font-weight-bold">XiW Bot</v-toolbar-title>

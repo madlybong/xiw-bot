@@ -380,6 +380,48 @@ app.delete('/backend/instances/:id', authMiddleware, async (c) => {
   }
 });
 
+// [v1.3.1] Update Instance Config
+app.patch('/backend/instances/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const { reply_window_enforced } = body;
+
+  if (reply_window_enforced === undefined) {
+    return c.json({ error: 'No fields to update' }, 400);
+  }
+
+  try {
+    const oldInst = db.query('SELECT reply_window_enforced FROM instances WHERE id = $id').get({ $id: id }) as any;
+    if (!oldInst) return c.json({ error: 'Instance not found' }, 404);
+
+    db.query('UPDATE instances SET reply_window_enforced = $val WHERE id = $id')
+      .run({ $val: reply_window_enforced ? 1 : 0, $id: id });
+
+    // Log Action
+    const user = c.get('jwtPayload');
+    const authType = c.get('auth_type' as any);
+    const actorType = c.get('actor_type' as any);
+
+    auditLogger.log({
+      userId: user.id || 1,
+      action: 'instance_config_update',
+      details: {
+        id,
+        changes: {
+          reply_window_enforced: { from: oldInst.reply_window_enforced, to: reply_window_enforced ? 1 : 0 }
+        }
+      },
+      severity: 'INFO',
+      actorType: actorType as any,
+      authType: authType as any
+    });
+
+    return c.json({ success: true });
+  } catch (e: any) {
+    return c.json({ error: 'Failed to update instance', details: e.message }, 500);
+  }
+});
+
 // WA Routing
 app.get('/backend/wa/status', authMiddleware, (c) => {
   const payload = c.get('jwtPayload');
@@ -387,7 +429,7 @@ app.get('/backend/wa/status', authMiddleware, (c) => {
 
   // Determine which instances to show
   if (payload.role === 'admin') {
-    instances = db.query('SELECT id, name FROM instances').all() as any[];
+    instances = db.query('SELECT id, name, reply_window_enforced FROM instances').all() as any[];
   } else {
     // For agents, show assigned instances via tokens (or user mapping if we had it)
     // Assuming UI user might map to agent.
@@ -395,7 +437,7 @@ app.get('/backend/wa/status', authMiddleware, (c) => {
     if (user) {
       // ... (Logic remains same, just route change)
       instances = db.query(`
-            SELECT DISTINCT i.id, i.name 
+            SELECT DISTINCT i.id, i.name, i.reply_window_enforced 
             FROM instances i 
             JOIN token_instances ti ON i.id = ti.instance_id 
             JOIN api_tokens at ON ti.token_id = at.id 
@@ -412,6 +454,7 @@ app.get('/backend/wa/status', authMiddleware, (c) => {
       name: inst.name,
       status: session ? session.status : 'stopped',
       qr: session ? session.qr : null,
+      reply_window_enforced: !!inst.reply_window_enforced, // [v1.3.2] Expose config
       user: session ? session.user : undefined
     };
   });
@@ -479,6 +522,14 @@ app.get('/backend/logs/:id/stream', authMiddleware, async (c) => {
     while (true) {
       await new Promise(resolve => setTimeout(resolve, 10000));
     }
+  });
+});
+
+// [v1.3.3] Version Check
+app.get('/api/version', (c) => {
+  return c.json({
+    version: '1.3.3',
+    build_time: new Date().toISOString()
   });
 });
 
@@ -596,8 +647,15 @@ const runMPE = (c: any, to: string, type: any, content: any) => {
     authType: c.get('auth_type'),
     actorType: c.get('actor_type'),
     allowedInstances: allowedInstances,
-    userRole: user.role // Optional context if rules need it
+    userRole: user.role, // Optional context if rules need it
+    replyWindowEnforced: true // Default safe
   };
+
+  // [v1.3.1] Fetch Instance Config
+  const instanceConfig = db.query('SELECT reply_window_enforced FROM instances WHERE id = $id').get({ $id: instanceId }) as any;
+  if (instanceConfig) {
+    context.replyWindowEnforced = !!instanceConfig.reply_window_enforced;
+  }
   return evaluateMessagePolicy(context);
 };
 

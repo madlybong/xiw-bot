@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 
-const version = ref('...');
+const version = ref(__APP_VERSION__ || 'Dev');
 const status = ref('Checking...');
 const updateAvailable = ref(false);
 const latestVersion = ref('');
@@ -10,10 +10,8 @@ const checkStatus = async () => {
   try {
     const res = await fetch('/api/health');
     if (res.ok) {
-      const data = await res.json();
-      version.value = data.version;
       status.value = 'Online';
-      checkUpdate(data.version);
+      checkUpdate(version.value);
     } else {
       status.value = 'Offline';
     }

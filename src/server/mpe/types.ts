@@ -10,6 +10,7 @@ export interface MessageContext {
     authType?: AuthType;
     actorType?: ActorType;
     allowedInstances?: number[]; // For assignment rule
+    replyWindowEnforced?: boolean; // v1.3.1 - Conditional enforcement
     userRole?: string;
 }
 

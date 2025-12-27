@@ -1,6 +1,6 @@
 {
   "name": "xiw-bot",
-  "version": "1.3.0",
+  "version": "1.3.3",
   "module": "src/server/index.ts",
   "type": "module",
   "private": true,
@@ -10,7 +10,8 @@
     "dev": "concurrently \"bun run dev:server\" \"bun run dev:ui\"",
     "build:ui": "cd src/ui && bun run build",
     "embed": "bun src/scripts/embed-assets.ts",
-    "build": "bun run build:ui && bun run embed && bun build --compile src/server/index.ts --outfile bin/bot-server",
+    "build:server": "bun build --compile src/server/index.ts --outfile bin/bot-server",
+    "build": "bun run build:ui && bun run embed && bun run build:server",
     "release": "bun src/scripts/release.ts",
     "sync": "bun src/scripts/auto_sync.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
