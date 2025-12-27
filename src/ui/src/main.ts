@@ -17,11 +17,108 @@ import Documentation from './pages/Documentation.vue'
 import Users from './pages/Users.vue'
 import License from './pages/License.vue'
 
+import './styles/main.css'
+
 const vuetify = createVuetify({
     components,
     directives,
     theme: {
-        defaultTheme: 'dark'
+        defaultTheme: 'dark',
+        themes: {
+            dark: {
+                dark: true,
+                colors: {
+                    background: '#0B0E11', // Enterprise Dark
+                    surface: '#15191E',    // Card Surface
+                    primary: '#2962FF',    // Corporate Blue
+                    secondary: '#78909C',  // Blue Grey
+                    error: '#EF5350',
+                    info: '#29B6F6',
+                    success: '#66BB6A',
+                    warning: '#FFA726',
+                    'on-background': '#E0E0E0',
+                    'on-surface': '#F5F5F5',
+                }
+            },
+            light: {
+                dark: false,
+                colors: {
+                    background: '#F5F7FA', // Cool Grey
+                    surface: '#FFFFFF',
+                    primary: '#2962FF',
+                    secondary: '#78909C',
+                    error: '#D32F2F',
+                    info: '#0288D1',
+                    success: '#388E3C',
+                    warning: '#F57C00',
+                }
+            }
+        }
+    },
+    defaults: {
+        global: {
+            ripple: false, // Minimalist feel
+        },
+        VCard: {
+            elevation: 0,
+            border: true,
+            rounded: 'lg', // 8px-12px range usually
+        },
+        VBtn: {
+            variant: 'flat',
+            height: 40,
+            rounded: '8', // Compact radius
+            class: 'text-none font-weight-medium letter-spacing-normal' // No Caps
+        },
+        VTextField: {
+            variant: 'outlined',
+            density: 'compact',
+            color: 'primary',
+            hideDetails: 'auto'
+        },
+        VTextarea: {
+            variant: 'outlined',
+            density: 'compact',
+            color: 'primary',
+            hideDetails: 'auto'
+        },
+        VSelect: {
+            variant: 'outlined',
+            density: 'compact',
+            color: 'primary',
+            hideDetails: 'auto'
+        },
+        VCheckbox: {
+            color: 'primary',
+            density: 'compact',
+            hideDetails: 'auto'
+        },
+        VSwitch: {
+            color: 'primary',
+            density: 'compact',
+            hideDetails: 'auto',
+            inset: true
+        },
+        VTable: {
+            density: 'compact',
+            class: 'border-thin',
+        },
+        VDataTable: {
+            density: 'compact',
+            hover: true,
+        },
+        VList: {
+            density: 'compact',
+        },
+        VChip: {
+            label: true,
+            size: 'small',
+            class: 'font-weight-bold text-uppercase',
+            rounded: 'sm'
+        },
+        VListItem: {
+            rounded: 'xl', // Capsule hovers
+        }
     },
     icons: {
         defaultSet: 'mdi',

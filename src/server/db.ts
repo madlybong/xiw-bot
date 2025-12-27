@@ -87,6 +87,17 @@ db.run(`
     tags TEXT,
     notes TEXT,
     source TEXT DEFAULT 'manual', 
+    last_inbound_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    content TEXT NOT NULL, 
+    variable_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
@@ -100,11 +111,32 @@ const columnsToAdd = [
   'ALTER TABLE users ADD COLUMN status TEXT DEFAULT "active"'
 ];
 
-for (const query of columnsToAdd) {
+const securityMigrations = [
+  // API Token Visibility
+  'ALTER TABLE api_tokens ADD COLUMN last_used_at DATETIME',
+  'ALTER TABLE api_tokens ADD COLUMN usage_count INTEGER DEFAULT 0',
+
+  // Audit Log Normalization
+  'ALTER TABLE audit_logs ADD COLUMN severity TEXT DEFAULT "INFO"', // INFO, WARN, ERROR
+  'ALTER TABLE audit_logs ADD COLUMN actor_type TEXT DEFAULT "system"', // system, user, api
+  'ALTER TABLE audit_logs ADD COLUMN auth_type TEXT DEFAULT "system"'   // system, jwt, static_token
+];
+
+const operationsMigrations = [
+  // P1: Instance Failure Context
+  'ALTER TABLE instances ADD COLUMN last_known_error TEXT',
+  'ALTER TABLE instances ADD COLUMN last_stop_reason TEXT', // manual, crash, auth_expired, network, license, unknown
+
+  // P3: Contact Suppression
+  'ALTER TABLE contacts ADD COLUMN suppressed BOOLEAN DEFAULT 0',
+  'ALTER TABLE contacts ADD COLUMN last_inbound_at DATETIME'
+];
+
+for (const query of [...columnsToAdd, ...securityMigrations, ...operationsMigrations]) {
   try {
     db.run(query);
   } catch (e) {
-    // Ignore "duplicate column name" error
+    // Ignore "duplicate column name" error mechanism
   }
 }
 
@@ -119,11 +151,8 @@ try {
   if (userCount === 0) {
     console.log('[DB] Seeding default admin account...');
     const adminHash = Bun.hash('admin').toString();
-    db.run('INSERT INTO users (username, password_hash, role, message_limit, limit_frequency, status) VALUES ($u, $p, $r, -1, "unlimited", "active")', {
-      $u: 'admin',
-      $p: adminHash,
-      $r: 'admin'
-    });
+    db.run('INSERT INTO users (username, password_hash, role, message_limit, limit_frequency, status) VALUES (?, ?, ?, -1, "unlimited", "active")',
+      ['admin', adminHash, 'admin']);
     console.log('[DB] Default admin created: admin / admin');
   }
 } catch (e) {

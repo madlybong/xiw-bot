@@ -37,7 +37,7 @@ export const tokenManager = {
         `).get({ $hash: hash }) as any;
 
         if (token) {
-            db.query('UPDATE api_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = $id').run({ $id: token.id });
+            db.query('UPDATE api_tokens SET last_used_at = CURRENT_TIMESTAMP, usage_count = usage_count + 1 WHERE id = $id').run({ $id: token.id });
 
             // Fetch allowed instances
             const instances = db.query('SELECT instance_id FROM token_instances WHERE token_id = $tid').all({ $tid: token.id }) as { instance_id: number }[];
