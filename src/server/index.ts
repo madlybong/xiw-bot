@@ -10,6 +10,9 @@ import { waManager } from './wa';
 import { tokenManager } from './tokens';
 import { toDataURL } from 'qrcode';
 import { initializeLicense, getLicenseLimits, getLicenseStatus } from '../licensing/runtime';
+import { streamSSE } from 'hono/streaming';
+import { logBus } from './log-bus';
+import { auditLogger } from './audit';
 
 // [CLI] Check for fingerprint request
 if (process.argv.includes('--get-fingerprint')) {
@@ -88,7 +91,28 @@ app.use('*', logger());
 import pkg from '../../package.json';
 
 app.get('/api/health', (c) => {
-  return c.json({ status: 'ok', version: '1.1.1', db: 'connected' });
+  const limits = getLicenseLimits();
+  const status = getLicenseStatus();
+  return c.json({
+    status: 'ok',
+    version: pkg.version,
+    db: 'connected',
+    capabilities: {
+      max_agents: limits.max_agents,
+      max_accounts: limits.max_whatsapp_accounts,
+      features: ['wa_automation', 'audit_logging', 'contact_management'],
+      license_mode: status?.license_state || 'UNKNOWN'
+    },
+    supported_endpoints: [
+      '/api/auth/login',
+      '/api/wa/send/text/:id',
+      '/api/wa/send/image/:id',
+      '/api/wa/send/video/:id',
+      '/api/wa/send/audio/:id',
+      '/api/wa/send/document/:id',
+      '/api/wa/send/location/:id'
+    ]
+  });
 });
 
 
@@ -111,8 +135,18 @@ app.post('/api/auth/login', async (c) => {
       // [SECURITY] Agents cannot login to UI
       if (user.role === 'agent') return c.json({ error: 'Agents must use API Tokens' }, 403);
 
-      const token = await createToken({ username, role: user.role, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 });
-      return c.json({ token });
+      const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24;
+      const token = await createToken({
+        username,
+        role: user.role,
+        id: user.id, // [FIX] Include ID for audit logging
+        exp
+      });
+      return c.json({
+        token,
+        role: user.role,
+        expiresAt: exp
+      });
     }
   }
 
@@ -342,10 +376,16 @@ app.post('/backend/instances', authMiddleware, async (c) => {
     const info = db.query('INSERT INTO instances (name, status) VALUES (?1, ?2) RETURNING id').get(name, 'stopped') as any;
     // Log action
     const user = c.get('jwtPayload');
-    db.query('INSERT INTO audit_logs (user_id, action, details) VALUES ($uid, $act, $det)').run({
-      $uid: user.id,
-      $act: 'create_instance',
-      $det: JSON.stringify({ name, id: info.id })
+    const authType = c.get('auth_type' as any);
+    const actorType = c.get('actor_type' as any);
+
+    auditLogger.log({
+      userId: user.id || 1, // Default to 1 if missing for some reason
+      action: 'create_instance',
+      details: { name, id: info.id },
+      severity: 'INFO',
+      actorType: actorType as any,
+      authType: authType as any
     });
     return c.json({ success: true, id: info.id });
   } catch (e: any) {
@@ -360,10 +400,16 @@ app.delete('/backend/instances/:id', authMiddleware, async (c) => {
     await waManager.deleteSession(id);
     db.query('DELETE FROM instances WHERE id = $id').run({ $id: id });
     const user = c.get('jwtPayload');
-    db.query('INSERT INTO audit_logs (user_id, action, details) VALUES ($uid, $act, $det)').run({
-      $uid: user.id,
-      $act: 'delete_instance',
-      $det: JSON.stringify({ id })
+    const authType = c.get('auth_type' as any);
+    const actorType = c.get('actor_type' as any);
+
+    auditLogger.log({
+      userId: user.id || 1,
+      action: 'delete_instance',
+      details: { id },
+      severity: 'WARN', // Deletion is WARN/Significant
+      actorType: actorType as any,
+      authType: authType as any
     });
     return c.json({ success: true });
   } catch (e: any) {
@@ -428,6 +474,51 @@ app.post('/backend/wa/logout/:id', authMiddleware, async (c) => {
   return c.json({ success: true });
 });
 
+app.get('/backend/logs/:id/stream', authMiddleware, async (c) => {
+  const id = c.req.param('id');
+  console.log(`[SSE] Client connected for instance ${id}`);
+
+  c.header('Content-Type', 'text/event-stream');
+  c.header('Cache-Control', 'no-cache');
+  c.header('Connection', 'keep-alive');
+
+  return streamSSE(c, async (stream) => {
+
+    const listener = (log: any) => {
+      stream.writeSSE({
+        data: JSON.stringify(log),
+        event: 'log',
+        id: String(Date.now())
+      });
+    };
+
+    const unsubscribe = logBus.subscribe(id, listener);
+
+    // Keep alive immediately to confirm connection
+    await stream.writeSSE({ event: 'ping', data: 'connected' });
+
+    const interval = setInterval(async () => {
+      try {
+        await stream.writeSSE({ event: 'ping', data: 'ping' });
+      } catch (e) {
+        // Stream closed?
+        clearInterval(interval);
+      }
+    }, 5000); // More frequent ping
+
+    stream.onAbort(() => {
+      console.log(`[SSE] Client disconnected for instance ${id}`);
+      unsubscribe();
+      clearInterval(interval);
+    });
+
+    // Block forever
+    while (true) {
+      await new Promise(resolve => setTimeout(resolve, 10000));
+    }
+  });
+});
+
 // [NEW] ME Endpoint
 app.get('/api/wa/me', authMiddleware, (c) => {
   const payload = c.get('jwtPayload');
@@ -467,13 +558,19 @@ app.get('/api/wa/me', authMiddleware, (c) => {
 });
 
 // Helper: Log Action & Auto-Save Contact
-const logAndSave = (userId: number, type: string, to: string, details: any) => {
+const logAndSave = (c: any, userId: number, type: string, to: string, details: any) => {
   try {
+    const authType = c.get('auth_type');
+    const actorType = c.get('actor_type');
+
     // 1. Audit Log
-    db.query('INSERT INTO audit_logs (user_id, action, details) VALUES ($uid, $act, $det)').run({
-      $uid: userId,
-      $act: `send_${type}`,
-      $det: JSON.stringify({ to, ...details })
+    auditLogger.log({
+      userId,
+      action: `send_${type}`,
+      details: { to, ...details },
+      severity: 'INFO',
+      actorType,
+      authType
     });
 
     // 2. Auto-save Contact
@@ -483,11 +580,62 @@ const logAndSave = (userId: number, type: string, to: string, details: any) => {
       $phone: phone
     });
 
-    // 3. Update Usage
-    db.query('UPDATE users SET message_usage = message_usage + 1 WHERE id = $id').run({ $id: userId });
+    // 3. Update Usage (With Lazy Reset)
+    const user = db.query('SELECT limit_frequency, last_usage_reset FROM users WHERE id = $id').get({ $id: userId }) as any;
+    if (user) {
+      const now = new Date();
+      const lastReset = new Date(user.last_usage_reset);
+      const ONE_DAY = 24 * 60 * 60 * 1000;
+
+      let shouldReset = false;
+      if (user.limit_frequency === 'daily' && (now.getTime() - lastReset.getTime() > ONE_DAY)) {
+        shouldReset = true;
+      }
+
+      if (shouldReset) {
+        db.query('UPDATE users SET message_usage = 1, last_usage_reset = CURRENT_TIMESTAMP WHERE id = $id').run({ $id: userId });
+      } else {
+        db.query('UPDATE users SET message_usage = message_usage + 1 WHERE id = $id').run({ $id: userId });
+      }
+    }
   } catch (e) {
     console.error('Log/Save API Error:', e);
   }
+};
+
+import { evaluateMessagePolicy } from './mpe';
+
+// [MPE] Helper to run policy engine
+const runMPE = (c: any, to: string, type: any, content: any) => {
+  const user = c.get('jwtPayload');
+  const instanceId = c.req.param('id');
+
+  let allowedInstances = user.allowedInstances;
+
+  // [MPE] For Human Agents (JWT), we must resolve assignments dynamically
+  if (!allowedInstances && user.role === 'agent') {
+    const rows = db.query(`
+        SELECT DISTINCT ti.instance_id 
+        FROM token_instances ti
+        JOIN api_tokens at ON ti.token_id = at.id
+        WHERE at.assigned_user_id = $uid
+      `).all({ $uid: user.id }) as { instance_id: number }[];
+    allowedInstances = rows.map(r => r.instance_id);
+  }
+
+  const context = {
+    userId: user.id,
+    instanceId,
+    to,
+    type,
+    content,
+    timestamp: new Date(),
+    authType: c.get('auth_type'),
+    actorType: c.get('actor_type'),
+    allowedInstances: allowedInstances,
+    userRole: user.role // Optional context if rules need it
+  };
+  return evaluateMessagePolicy(context);
 };
 
 // Message Sending APIs
@@ -499,11 +647,15 @@ app.post('/api/wa/send/text/:id', authMiddleware, async (c) => {
   const { to, message } = await c.req.json();
   if (!to || !message) return c.json({ error: 'Missing to/message' }, 400);
 
+  // [MPE] Policy Check
+  const policy = runMPE(c, to, 'text', { message });
+  if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
+
   const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
   await session.socket.sendMessage(jid, { text: message });
 
   const user = c.get('jwtPayload');
-  logAndSave(user.id, 'text', to, { message });
+  logAndSave(c, user.id, 'text', to, { message });
 
   return c.json({ success: true });
 });
@@ -516,6 +668,10 @@ app.post('/api/wa/send/image/:id', authMiddleware, async (c) => {
   const { to, url, caption } = await c.req.json();
   if (!to || !url) return c.json({ error: 'Missing to/url' }, 400);
 
+  // [MPE] Policy Check
+  const policy = runMPE(c, to, 'image', { url, caption });
+  if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
+
   const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
   await session.socket.sendMessage(jid, {
     image: { url },
@@ -523,7 +679,7 @@ app.post('/api/wa/send/image/:id', authMiddleware, async (c) => {
   });
 
   const user = c.get('jwtPayload');
-  logAndSave(user.id, 'image', to, { url, caption });
+  logAndSave(c, user.id, 'image', to, { url, caption });
 
   return c.json({ success: true });
 });
@@ -536,15 +692,19 @@ app.post('/api/wa/send/video/:id', authMiddleware, async (c) => {
   const { to, url, caption, gifPlayback } = await c.req.json();
   if (!to || !url) return c.json({ error: 'Missing to/url' }, 400);
 
+  // [MPE] Policy Check
+  const policy = runMPE(c, to, 'video', { url, caption, gifPlayback });
+  if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
+
   const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
   await session.socket.sendMessage(jid, {
     video: { url },
     caption: caption || '',
-    gifPlayback: !!gifPlayback
+    gifPlayback
   });
 
   const user = c.get('jwtPayload');
-  logAndSave(user.id, 'video', to, { url, caption });
+  logAndSave(c, user.id, 'video', to, { url, caption });
 
   return c.json({ success: true });
 });
@@ -557,15 +717,19 @@ app.post('/api/wa/send/audio/:id', authMiddleware, async (c) => {
   const { to, url, ptt } = await c.req.json();
   if (!to || !url) return c.json({ error: 'Missing to/url' }, 400);
 
+  // [MPE] Policy Check
+  const policy = runMPE(c, to, 'audio', { url, ptt });
+  if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
+
   const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
   await session.socket.sendMessage(jid, {
     audio: { url },
     mimetype: 'audio/mp4',
-    ptt: !!ptt
+    ptt: ptt || false
   });
 
   const user = c.get('jwtPayload');
-  logAndSave(user.id, 'audio', to, { url, ptt });
+  logAndSave(c, user.id, 'audio', to, { url, ptt });
 
   return c.json({ success: true });
 });
@@ -578,15 +742,19 @@ app.post('/api/wa/send/document/:id', authMiddleware, async (c) => {
   const { to, url, filename, mimetype } = await c.req.json();
   if (!to || !url) return c.json({ error: 'Missing to/url' }, 400);
 
+  // [MPE] Policy Check
+  const policy = runMPE(c, to, 'document', { url, filename, mimetype });
+  if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
+
   const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
   await session.socket.sendMessage(jid, {
     document: { url },
-    mimetype: mimetype || 'application/octet-stream',
-    fileName: filename || 'document'
+    fileName: filename,
+    mimetype
   });
 
   const user = c.get('jwtPayload');
-  logAndSave(user.id, 'document', to, { url, filename });
+  logAndSave(c, user.id, 'document', to, { url, filename });
 
   return c.json({ success: true });
 });
@@ -599,13 +767,48 @@ app.post('/api/wa/send/location/:id', authMiddleware, async (c) => {
   const { to, latitude, longitude, address } = await c.req.json();
   if (!to || !latitude || !longitude) return c.json({ error: 'Missing to/lat/long' }, 400);
 
+  // [MPE] Policy Check
+  const policy = runMPE(c, to, 'location', { latitude, longitude, address });
+  if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
+
   const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
   await session.socket.sendMessage(jid, {
     location: { degreesLatitude: latitude, degreesLongitude: longitude, address: address }
   });
 
   const user = c.get('jwtPayload');
-  logAndSave(user.id, 'location', to, { latitude, longitude });
+  logAndSave(c, user.id, 'location', to, { latitude, longitude, address });
+
+  return c.json({ success: true });
+});
+
+app.post('/api/wa/send/template/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id');
+  const session = waManager.getSession(id);
+  if (!session) return c.json({ error: 'Session not found/active' }, 404);
+
+  const { to, templateName, variables } = await c.req.json();
+  if (!to || !templateName) return c.json({ error: 'Missing to/templateName' }, 400);
+
+  // [MPE] Policy Check
+  const policy = runMPE(c, to, 'template', { templateName, variables });
+  if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
+
+  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+
+  // Fetch content for hydration (Simplistic hydration for now)
+  const template = db.query('SELECT content FROM templates WHERE name = $name').get({ $name: templateName }) as any;
+  let text = template.content;
+  if (variables && Array.isArray(variables)) {
+    variables.forEach((v, i) => {
+      text = text.replace(`{{${i + 1}}}`, v);
+    });
+  }
+
+  await session.socket.sendMessage(jid, { text }); // Sends as text for now, but passed policy as template
+
+  const user = c.get('jwtPayload');
+  logAndSave(c, user.id, 'template', to, { templateName, variables });
 
   return c.json({ success: true });
 });

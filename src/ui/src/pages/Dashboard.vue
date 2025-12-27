@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import QRCode from 'qrcode';
 
 interface Instance {
@@ -15,6 +15,13 @@ const loading = ref(false);
 const qrDialog = ref(false);
 const selectedQr = ref('');
 const selectedName = ref('');
+const qrInstanceId = ref<number | null>(null);
+
+// Terminal State
+const logs = ref<{ time: string; level: string; msg: string }[]>([]);
+const terminalDialog = ref(false);
+let activeStream: { close: () => void } | null = null;
+const terminalInstanceId = ref<number | null>(null);
 
 // Fetch Data
 const fetchStatus = async () => {
@@ -26,12 +33,23 @@ const fetchStatus = async () => {
         if (res.ok) {
             const data = await res.json();
             instances.value = data.instances;
+
+            // Auto-close QR dialog if connected
+            if (qrDialog.value && qrInstanceId.value) {
+                const updated = instances.value.find(i => i.id === qrInstanceId.value);
+                if (updated && updated.status === 'connected') {
+                    qrDialog.value = false;
+                    qrInstanceId.value = null; // Reset
+                }
+            }
         }
     } catch (e) {
         console.error(e);
     }
     loading.value = false;
 };
+
+// ... existing createInstance ...
 
 
 
@@ -68,11 +86,21 @@ const deleteInstance = async (id: number) => {
 
 // Actions
 const startInstance = async (id: number) => {
-    await fetch(`/backend/wa/start/${id}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-    });
-    fetchStatus(); // Poll update
+    try {
+        const res = await fetch(`/backend/wa/start/${id}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (!res.ok) {
+            const data = await res.json();
+            alert(`Error: ${data.error || 'Failed to start session'}`);
+        } else {
+            fetchStatus(); // Poll update
+        }
+    } catch (e) {
+        alert('Connection timed out or failed. Please check logs.');
+        console.error(e);
+    }
 };
 
 const stopInstance = async (id: number) => {
@@ -83,22 +111,65 @@ const stopInstance = async (id: number) => {
     fetchStatus();
 };
 
-const showQr = async (qr: string, name: string) => {
+const showQr = async (qr: string, name: string, id: number) => {
     if (!qr) return;
     try {
         selectedQr.value = await QRCode.toDataURL(qr);
         selectedName.value = name;
+        qrInstanceId.value = id;
         qrDialog.value = true;
     } catch (e) {
         console.error(e);
     }
 };
 
+const openTerminal = (id: number, name: string) => {
+    if (activeStream) activeStream.close();
+    logs.value = [];
+    selectedName.value = name;
+    terminalInstanceId.value = id;
+    terminalDialog.value = true;
+
+    const es = new EventSource(`/backend/logs/${id}/stream?token=${localStorage.getItem('token')}`);
+
+    es.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            const date = new Date(Number(event.lastEventId));
+            logs.value.push({
+                time: date.toLocaleTimeString(),
+                level: (data.level || 30) >= 50 ? 'ERROR' : (data.level >= 40 ? 'WARN' : 'INFO'),
+                msg: data.msg || JSON.stringify(data)
+            });
+            // Auto-scroll logic
+            const el = document.getElementById('terminal-window');
+            if (el) el.scrollTop = el.scrollHeight;
+        } catch (e) { }
+    };
+
+    // Handle error/close?
+    es.onerror = () => {
+        // Maybe reconnect or show error? For now, silence.
+    };
+
+    activeStream = es;
+};
+
+const closeTerminal = () => {
+    if (activeStream) activeStream.close();
+    activeStream = null;
+    terminalDialog.value = false;
+};
+
 onMounted(() => {
     fetchStatus();
     // Poll every 5s
     const timer = setInterval(fetchStatus, 5000);
-    return () => clearInterval(timer);
+    // return cleanup? No, onUnmounted is better for component lifecycle
+});
+
+onUnmounted(() => {
+    if (activeStream) activeStream.close();
 });
 
 const getStatusColor = (status: string) => {
@@ -158,26 +229,27 @@ const getStatusColor = (status: string) => {
                     </v-card-text>
 
                     <v-card-actions class="justify-end px-4 pb-4">
-                        <v-btn v-if="inst.status !== 'connected'" variant="flat" color="success"
-                            @click="startInstance(inst.id)">
-                            Start Session
-                        </v-btn>
+                        <div class="d-flex flex-wrap gap-2 justify-end w-100">
+                            <v-btn variant="text" size="small" prepend-icon="mdi-console"
+                                @click="openTerminal(inst.id, inst.name)">
+                                Terminal
+                            </v-btn>
 
-                        <!-- Add Reset Button for Disconnected/Stuck states -->
-                        <v-btn v-if="inst.status === 'disconnected'" variant="text" color="warning" size="small"
-                            @click="stopInstance(inst.id)">
-                            Reset
-                        </v-btn>
+                            <v-btn v-if="inst.status !== 'connected'" variant="flat" color="success" size="small"
+                                @click="startInstance(inst.id)">
+                                Start
+                            </v-btn>
 
-                        <v-btn v-if="inst.status === 'connecting' && inst.qr" variant="outlined" color="info"
-                            prepend-icon="mdi-qrcode" @click="showQr(inst.qr, inst.name)">
-                            Scan QR
-                        </v-btn>
+                            <v-btn v-if="inst.status === 'disconnected'" variant="text" color="warning" size="small"
+                                @click="stopInstance(inst.id)">Reset</v-btn>
 
-                        <v-btn v-if="inst.status === 'connected'" variant="tonal" color="error"
-                            @click="stopInstance(inst.id)">
-                            Logout
-                        </v-btn>
+                            <v-btn v-if="inst.status === 'connecting' && inst.qr" variant="outlined" color="info"
+                                size="small" prepend-icon="mdi-qrcode"
+                                @click="showQr(inst.qr, inst.name, inst.id)">Scan</v-btn>
+
+                            <v-btn v-if="inst.status === 'connected'" variant="tonal" color="error" size="small"
+                                @click="stopInstance(inst.id)">Logout</v-btn>
+                        </div>
                     </v-card-actions>
                 </v-card>
             </v-col>
@@ -212,5 +284,60 @@ const getStatusColor = (status: string) => {
             </v-card>
         </v-dialog>
 
+        <!-- Terminal Dialog -->
+        <v-dialog v-model="terminalDialog" persistent max-width="800" width="100%">
+            <v-card theme="dark" class="terminal-card">
+                <v-card-title class="d-flex align-center py-2 px-4 bg-grey-darken-4">
+                    <span class="text-caption font-weight-bold font-monospace text-medium-emphasis">>_ {{ selectedName
+                    }}</span>
+                    <v-spacer></v-spacer>
+                    <v-btn icon="mdi-close" size="x-small" variant="text" @click="closeTerminal"></v-btn>
+                </v-card-title>
+                <v-card-text class="pa-0">
+                    <div id="terminal-window" class="terminal-window pa-4 font-monospace text-caption">
+                        <div v-for="(log, i) in logs" :key="i" class="log-line">
+                            <span class="text-grey-darken-1 mr-2">[{{ log.time }}]</span>
+                            <span :class="{
+                                'text-blue': log.level === 'INFO',
+                                'text-yellow': log.level === 'WARN',
+                                'text-red': log.level === 'ERROR'
+                            }" class="font-weight-bold mr-2">{{ log.level }}</span>
+                            <span class="text-grey-lighten-2">{{ log.msg }}</span>
+                        </div>
+                        <div v-if="logs.length === 0" class="text-grey-darken-2 text-center mt-4">
+                            Waiting for logs...
+                        </div>
+                    </div>
+                </v-card-text>
+            </v-card>
+        </v-dialog>
+
     </v-container>
 </template>
+
+<style scoped>
+.terminal-card {
+    border: 1px solid #333;
+}
+
+.terminal-window {
+    background-color: #0d0d0f;
+    /* Pitch black/very dark */
+    height: 400px;
+    overflow-y: auto;
+    font-family: 'JetBrains Mono', monospace !important;
+}
+
+.log-line {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 2px 0;
+}
+
+.gap-2 {
+    gap: 8px;
+}
+
+.w-100 {
+    width: 100%;
+}
+</style>

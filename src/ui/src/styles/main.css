@@ -1,0 +1,53 @@
+/* Google Fonts Import */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Poppins:wght@300;400;500;600;700&display=swap');
+
+/* Global Reset */
+:root {
+    --v-font-family: 'Poppins', sans-serif;
+}
+
+body,
+.v-application {
+    font-family: 'Poppins', sans-serif !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Monospace overrides for code blocks or IDs */
+code,
+kbd,
+samp,
+pre,
+.font-mono {
+    font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* Scrollbar Styling (Webkit) */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(var(--v-theme-on-surface), 0.2);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(var(--v-theme-on-surface), 0.3);
+}
+
+/* Utility overrides for density */
+.v-container {
+    max-width: 1400px !important;
+    /* Limit width on ultra-wide screens for readability */
+}
+
+/* Card Borders */
+.v-card--border {
+    border-color: rgba(var(--v-theme-on-surface), 0.08) !important;
+}

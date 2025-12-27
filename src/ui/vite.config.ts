@@ -21,6 +21,8 @@ export default defineConfig({
             '/backend': {
                 target: 'http://localhost:3000',
                 changeOrigin: true,
+                timeout: 0,
+                proxyTimeout: 0
             }
         }
     }

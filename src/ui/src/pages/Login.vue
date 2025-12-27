@@ -41,15 +41,15 @@ const handleLogin = async () => {
             </div>
 
             <v-card-text>
-                <v-form @submit.prevent="handleLogin">
+                <v-form @submit.prevent="handleLogin" autocomplete="off">
                     <v-text-field v-model="username" label="Username" prepend-inner-icon="mdi-account"
-                        variant="outlined" class="mb-2"></v-text-field>
+                        variant="outlined" class="mb-2" autocomplete="off"></v-text-field>
 
                     <v-text-field v-model="password" label="Password" prepend-inner-icon="mdi-lock"
                         :type="showPassword ? 'text' : 'password'"
                         :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
-                        @click:append-inner="showPassword = !showPassword" variant="outlined"
-                        class="mb-4"></v-text-field>
+                        @click:append-inner="showPassword = !showPassword" variant="outlined" class="mb-4"
+                        autocomplete="new-password"></v-text-field>
 
                     <v-btn block color="primary" size="large" type="submit" :loading="loading">
                         Login

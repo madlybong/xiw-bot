@@ -149,13 +149,31 @@ export const getLicenseStatus = () => {
 
     const now = new Date();
     const expires = new Date(activeLicense.expires_at);
-    const diffTime = expires.getTime() - now.getTime();
-    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // Diff in days (floor/ceil matters? Let's use simpler day diff)
+    const diffMs = expires.getTime() - now.getTime();
+    const daysRemaining = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    let state: 'VALID' | 'EXPIRING_SOON' | 'EXPIRED_GRACE' | 'EXPIRED_LOCKED' = 'VALID';
+    if (daysRemaining <= 0) {
+        // Expired
+        if (daysRemaining > -14) state = 'EXPIRED_GRACE'; // 2 weeks grace
+        else state = 'EXPIRED_LOCKED';
+    } else if (daysRemaining <= 7) {
+        state = 'EXPIRING_SOON';
+    }
+
+    const restrictions = {
+        read_only: state === 'EXPIRED_LOCKED',
+        block_sends: state === 'EXPIRED_LOCKED' // Grace period allows sends but warns? Prompt says "define grace period behavior". Let's say Grace allows everything but warns UI.
+    };
 
     return {
         ...activeLicense,
         days_remaining: daysRemaining,
+        license_state: state,
+        enforced_restrictions: restrictions,
         machine_mismatch: bindingMismatch,
-        status: daysRemaining < 0 ? 'expired' : (daysRemaining < 7 ? 'warning' : 'active')
+        // Legacy compat
+        status: state.includes('EXPIRED') ? 'expired' : (state === 'EXPIRING_SOON' ? 'warning' : 'active')
     };
 };
