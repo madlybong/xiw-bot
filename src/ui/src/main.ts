@@ -15,7 +15,6 @@ import Contacts from './pages/Contacts.vue'
 import AuditLog from './pages/AuditLog.vue'
 import Documentation from './pages/Documentation.vue'
 import Users from './pages/Users.vue'
-import License from './pages/License.vue'
 
 import './styles/main.css'
 
@@ -156,11 +155,7 @@ const routes = [
         component: Users,
         meta: { requiresAuth: true }
     },
-    {
-        path: '/license',
-        component: License,
-        meta: { requiresAuth: true }
-    },
+
     { path: '/docs', component: Documentation },
 ]
 
