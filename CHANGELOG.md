@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.0] - 2025-12-27
+
+### Removed
+- **Licensing System**: Completely removed all licensing restrictions.
+    - Application now runs **unrestricted** by default.
+    - Removed `License.vue` and `/license` route.
+    - Removed `checkLicense` rule from MPE pipeline.
+    - Removed `public.key` dependency from build process.
+    - Removed `XIW-LIC-GEN` integration.
+
+### Changed
+- **API**: Removed `/api/license` endpoint.
+- **API**: `/api/health` no longer reports `license_mode` or limits (defaults to unrestricted).
+- **Navigation**: Removed "License" menu item.
+
 ## [1.2.0] - 2025-12-27
 
 ### Added

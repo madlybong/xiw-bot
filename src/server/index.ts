@@ -9,26 +9,12 @@ import { authMiddleware, createToken, JWT_SECRET } from './auth';
 import { waManager } from './wa';
 import { tokenManager } from './tokens';
 import { toDataURL } from 'qrcode';
-import { initializeLicense, getLicenseLimits, getLicenseStatus } from '../licensing/runtime';
+
 import { streamSSE } from 'hono/streaming';
 import { logBus } from './log-bus';
 import { auditLogger } from './audit';
 
-// [CLI] Check for fingerprint request
-if (process.argv.includes('--get-fingerprint')) {
-  const { getMachineFingerprint } = require('../licensing/fingerprint');
-  console.log(getMachineFingerprint());
-  process.exit(0);
-}
 
-// [DEV] Bypass Check (Must be before License Init)
-if (process.argv.includes('--dev')) {
-  process.env.NODE_ENV = 'development';
-  console.log('!!! STARTING IN DEVELOPMENT MODE (LICENSE BYPASS ACTIVE) !!!');
-}
-
-// [LICENSE] Boot Enforcement
-initializeLicense();
 
 // Simple password hashing (for demo purposes using Bun.hash, in prod use AccessControl/Argon2 properly)
 // We already have password_hash in DB
@@ -91,17 +77,14 @@ app.use('*', logger());
 import pkg from '../../package.json';
 
 app.get('/api/health', (c) => {
-  const limits = getLicenseLimits();
-  const status = getLicenseStatus();
   return c.json({
     status: 'ok',
     version: pkg.version,
     db: 'connected',
     capabilities: {
-      max_agents: limits.max_agents,
-      max_accounts: limits.max_whatsapp_accounts,
+      max_agents: -1,
+      max_accounts: -1,
       features: ['wa_automation', 'audit_logging', 'contact_management'],
-      license_mode: status?.license_state || 'UNKNOWN'
     },
     supported_endpoints: [
       '/api/auth/login',
@@ -156,10 +139,7 @@ app.post('/api/auth/login', async (c) => {
   return c.json({ error: 'Invalid credentials' }, 401);
 });
 
-// [LICENSE] Status Endpoint
-app.get('/api/license', authMiddleware, (c) => {
-  return c.json(getLicenseStatus());
-});
+
 
 // User Management APIs
 app.get('/backend/users', authMiddleware, (c) => {
@@ -233,14 +213,7 @@ app.post('/backend/users', authMiddleware, async (c) => {
   }
   const { username, password, role, message_limit, limit_frequency, status } = body;
 
-  // [LICENSE] Check Agent Limits
-  if ((role === 'agent' || !role)) { // Default is agent
-    const limits = getLicenseLimits();
-    const currentAgents = (db.query('SELECT COUNT(*) as count FROM users WHERE role = "agent"').get() as any).count;
-    if (limits.max_agents !== -1 && currentAgents >= limits.max_agents) {
-      return c.json({ error: `License limit reached: Max Agents (${limits.max_agents})` }, 403);
-    }
-  }
+
 
   const hash = Bun.hash(password).toString();
   try {
@@ -326,12 +299,7 @@ app.post('/backend/accounts', authMiddleware, async (c) => {
   }
   const { name, config } = body;
 
-  // [LICENSE] Check Instance Limits
-  const limits = getLicenseLimits();
-  const currentInstances = (db.query('SELECT COUNT(*) as count FROM instances').get() as any).count;
-  if (limits.max_whatsapp_accounts !== -1 && currentInstances >= limits.max_whatsapp_accounts) {
-    return c.json({ error: `License limit reached: Max WhatsApp Accounts (${limits.max_whatsapp_accounts})` }, 403);
-  }
+
   try {
     db.query('INSERT INTO instances (name, config) VALUES ($name, $config)').run({ $name: name, $config: config });
     return c.json({ success: true });
@@ -365,12 +333,7 @@ app.post('/backend/instances', authMiddleware, async (c) => {
   const { name } = await c.req.json();
   if (!name) return c.json({ error: 'Name is required' }, 400);
 
-  // [LICENSE] Check Instance Limits
-  const limits = getLicenseLimits();
-  const currentInstances = (db.query('SELECT COUNT(*) as count FROM instances').get() as any).count;
-  if (limits.max_whatsapp_accounts !== -1 && currentInstances >= limits.max_whatsapp_accounts) {
-    return c.json({ error: `License limit reached: Max WhatsApp Accounts (${limits.max_whatsapp_accounts})` }, 403);
-  }
+
 
   try {
     const info = db.query('INSERT INTO instances (name, status) VALUES (?1, ?2) RETURNING id').get(name, 'stopped') as any;

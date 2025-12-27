@@ -2,7 +2,6 @@ import { auditLogger } from '../audit';
 import type { MessageContext, PolicyDecision } from './types';
 
 // Rules
-import { checkLicense } from './rules/license';
 import { checkAssignment } from './rules/assignment';
 import { checkInstanceStatus } from './rules/instance-status';
 import { checkSuppression } from './rules/suppression';
@@ -14,11 +13,10 @@ import { checkQuota } from './rules/quota';
 export const evaluateMessagePolicy = (ctx: MessageContext): PolicyDecision => {
     // Pipeline of rules
     // ORDER MATTERS: Fail-Fast approach.
-    // 1. Critical System Checks (License, Assignments, Status) - Cheap & Mandatory
+    // 1. Critical System Checks (Assignments, Status) - Cheap & Mandatory
     // 2. Resource/Security Checks (Quota, Suppression) - Database hits
     // 3. Compliance & Content Checks (Window, Content, Template) - Logic heavy
     const pipeline = [
-        checkLicense,       // Global Lock: Stop everything if license unsafe
         checkAssignment,    // Security: Ensure user owns this instance
         checkInstanceStatus,// Operational: Don't try if dead
         checkQuota,         // Resource: Stop early if out of credits
