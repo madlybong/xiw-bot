@@ -5,27 +5,30 @@ node_modules/
 dist/
 bin/
 
-# Environment
+# Environment Secrets
 .env
 .env.*
 
-# Application Data (CRITICAL - DO NOT COMMIT)
+# Data & Persistence (BLOCK AT ALL COSTS)
 *.sqlite
+*.sqlite3
 *.db
 bot-server.sqlite
 xiw-bot.sqlite
 
-# WhatsApp State
+# Auth & Session State (BLOCK AT ALL COSTS)
 wa_auth/
 wa_sessions/
 auth_state/
+baileys_auth/
 
 # Logs
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
+bun.lockb
+!bun.lockb
 
 # OS / Editor
 .DS_Store

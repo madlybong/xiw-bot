@@ -19,7 +19,7 @@ Manage multiple WhatsApp instances, audit logs, and address books from a unified
 
 XIW-BOT is an open-source technical platform designed for developers and system administrators who wish to run their own WhatsApp automation infrastructure. It provides a monolithic "Server + UI" binary that bridges the `Baileys` library (protocol adapter) with a modern Vue 3 control panel.
 
--   **Technical Tool**: A raw, unopinionated wrapper around the WhatsApp Web Socket protocol.
+-   **Technical Platform**: A raw, unopinionated wrapper around the WhatsApp Web Socket protocol.
 -   **Self-Hosted**: You run the binary. You own the data. You manage the network.
 -   **Developer-Focused**: Exposes low-level APIs and events for custom integration.
 
