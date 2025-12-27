@@ -1,8 +1,14 @@
 # XIW-BOT
 
-**A Self-Hosted WhatsApp Operations Server**
+## Project Overview
 
-> **⚠️ DISCLAIMER: RESEARCH & DEVELOPMENT TOOL ONLY**
+XIW-BOT is a high-performance WhatsApp Bot Server built with **Bun**, **Hono**, and **Vue.js 3 + Vuetify**.
+Manage multiple WhatsApp instances, audit logs, and address books from a unified, self-hosted dashboard.
+
+## Important Notice / Disclaimer
+
+> **⚠️ RESEARCH & DEVELOPMENT TOOL ONLY**
+>
 > This project is a reverse-engineering effort to explore the WhatsApp Web protocol. It is NOT affiliated with, authorized by, or endorsed by WhatsApp Inc. or Meta Platforms, Inc.
 >
 > **USE AT YOUR OWN RISK.** Automated use of WhatsApp may violate their Terms of Service and could result in the permanent banning of your account. The authors accept no responsibility for banned accounts, lost data, or legal consequences.
@@ -47,7 +53,7 @@ The system runs as a single compiled executable (Bun runtime + Hono Server + Vue
 
 ---
 
-## 🚀 Installation & Run
+## Installation & Running
 
 **Prerequisites**:
 -   A supported OS (Linux x64, Windows x64)
@@ -105,6 +111,21 @@ See the [LICENSE](LICENSE) file for the full legal text.
 -   **Contributions**: Pull Requests are welcome (See `CONTRIBUTING.md` if available).
 
 ---
+
+## Ethical Use Statement
+
+XIW-BOT is designed for legitimate operations management, such as:
+-   Customer Support Helpdesks
+-   Internal System Notifications
+-   Personal Home Automation
+-   Research & Protocol Analysis
+
+**We condemn the use of this software for:**
+-   Spamming or Bulk Marketing
+-   Harassment or Cyberbullying
+-   Misinformation Campaigns
+
+Users found utilizing this software for malicious purposes will be blocked from the open-source community support channels.
 
 ## 🛑 Final Disclaimer
 
