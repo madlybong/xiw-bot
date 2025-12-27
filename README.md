@@ -1,78 +1,111 @@
-# XiW Bot Server
+# XIW-BOT
 
-A high-performance WhatsApp Bot Server built with **Bun**, **Hono**, and **Vue.js 3 + Vuetify**.
-Manage multiple WhatsApp instances, audit logs, and address books from a unified, self-hosted dashboard.
+**A Self-Hosted WhatsApp Operations Server**
 
-## 🚀 Features
+> **⚠️ DISCLAIMER: RESEARCH & DEVELOPMENT TOOL ONLY**
+> This project is a reverse-engineering effort to explore the WhatsApp Web protocol. It is NOT affiliated with, authorized by, or endorsed by WhatsApp Inc. or Meta Platforms, Inc.
+>
+> **USE AT YOUR OWN RISK.** Automated use of WhatsApp may violate their Terms of Service and could result in the permanent banning of your account. The authors accept no responsibility for banned accounts, lost data, or legal consequences.
 
-### Core
--   **Multi-Instance Support**: Run multiple WhatsApp accounts simultaneously.
--   **Fast & Lightweight**: Backend powered by Bun + Hono.
--   **Modern UI**: Built with Vue 3, Vuetify, and Material Design (Dark/Light Mode).
--   **Self-Contained**: Compiles to a single executable binary.
+---
 
-### Management
--   **User Roles**: Admin (Full Access) and Agent (Restricted Access) roles.
--   **Usage Limits**: Set message limits (e.g., 1000/day) per agent.
--   **Audit Logs**: Track every action and message sent.
--   **Global Address Book**: Centralized contact management with Import/Export.
+## 📖 What This Project Is
 
-### Resilience
--   **Connection Stability**: Hardened Baileys configuration to prevent 428 errors.
--   **Session Reset**: Built-in tools to recover from corrupted sessions.
+XIW-BOT is an open-source technical platform designed for developers and system administrators who wish to run their own WhatsApp automation infrastructure. It provides a monolithic "Server + UI" binary that bridges the `Baileys` library (protocol adapter) with a modern Vue 3 control panel.
 
-## 🛠️ Installation
+-   **Technical Tool**: A raw, unopinionated wrapper around the WhatsApp Web Socket protocol.
+-   **Self-Hosted**: You run the binary. You own the data. You manage the network.
+-   **Developer-Focused**: Exposes low-level APIs and events for custom integration.
 
-### Quick Start (Binary)
-Download the latest release from the [Releases Page](../../releases).
+## 🚫 What This Project Is NOT
 
-1.  Run the server:
+-   It is **NOT** a SaaS service.
+-   It is **NOT** a "Safe" or "White-Hat" marketing tool.
+-   It does **NOT** guarantee anti-ban protection.
+-   It does **NOT** come with support, SLA, or warranties.
+
+---
+
+## ⚡ Core Features
+
+-   **Multi-Instance Runtime**: Manage multiple distinct WhatsApp sessions from one process.
+-   **Messaging Policy Engine (MPE)**: A configurable logic layer to enforce your own internal rules (e.g., rate limits, content filtering).
+-   **Audit Logging**: Local SQLite-based logging of all system actions.
+-   **Restricted API**: Token-based access control for programmatic integration.
+-   **Operations Console**: A minimal, dark-mode UI for monitoring status and managing configurations.
+
+---
+
+## 🏗️ Architecture Overview
+
+The system runs as a single compiled executable (Bun runtime + Hono Server + Vue UI).
+
+1.  **Protocol Layer**: Uses `@whiskeysockets/baileys` to communicate with WhatsApp servers.
+2.  **Logic Layer**: `src/server/mpe` strictly evaluates every outgoing message against defined policies.
+3.  **Persistence**: `bun:sqlite` stores local state (sessions, logs, users) in `bot-server.sqlite`.
+4.  **Interface**: A bundled Vue 3 SPA served directly by the Hono backend.
+
+---
+
+## 🚀 Installation & Run
+
+**Prerequisites**:
+-   A supported OS (Linux x64, Windows x64)
+-   Basic understanding of command-line tools
+
+**Running from Binary**:
+
+1.  Download the latest release.
+2.  Run the executable:
     ```bash
-    ./bot-server.exe
+    ./bot-server
     ```
-2.  Open `http://localhost:3000` in your browser.
-3.  Login with the admin credentials (see below).
+3.  Access the console at `http://localhost:3000`.
+4.  First run will initialize the local SQLite database.
 
-### Setup Admin Account
-The first time you run the server, you need to create an admin account via CLI:
+**Running from Source**:
+
 ```bash
-./bot-server.exe --admin-user admin --admin-password "secret123"
+# Install dependencies
+bun install
+
+# Run development mode
+bun run dev -- concurrent
 ```
 
-## 💻 Development
+---
 
-### Prerequisites
--   [Bun](https://bun.sh) (latest version)
+## 🛡️ Security & Responsibility
 
-### Build from Source
-1.  **Install Dependencies**:
-    ```bash
-    bun install
-    cd src/ui && bun install && cd ../..
-    ```
+This software provides **mechanisms**, not **policies**. It is the sole responsibility of the operator to ensure their usage complies with:
+1.  WhatsApp / Meta Terms of Service.
+2.  Local laws regarding automated messaging and privacy (e.g., GDPR, CAN-SPAM).
+3.  Ethical standards for communication.
 
-2.  **Build UI & Server**:
-    ```bash
-    bun run build
-    ```
-    This command compiles the Vue frontend, embeds it into the Go binary assets, and compiles the Hono server.
+The software is provided "as-is". No security audits have been performed. usage in public-facing or hostility environments is not recommended without additional layers of security (VPN, Firewall, Reverse Proxy).
 
-3.  **Run Locally (Dev Mode)**:
-    ```bash
-    # Terminal 1: Backend
-    bun run dev:server
+---
 
-    # Terminal 2: Frontend
-    bun run dev:ui
-    ```
+## ⚖️ Open Source License
 
-## 📚 API Documentation
-The built-in Swagger/OpenAPI documentation is available at `/docs` (e.g., `http://localhost:3000/docs`).
+This project is licensed under the **MIT License**.
 
-## 📦 Versioning
-This project uses semantic versioning. 
--   **Releases**: Triggered by pushing a tag `vX.Y.Z`.
--   **Current Version**: v0.9.4
+-   You are free to use, modify, and distribute this software.
+-   You assume full liability for any outcomes.
+-   There is NO WARRANTY of any kind.
 
-## 📄 License
-MIT
+See the [LICENSE](LICENSE) file for the full legal text.
+
+---
+
+## 🤝 Support & Contributions
+
+-   **No Commercial Support**: This project is maintained by volunteers. Do not expect commercial-grade support or response times.
+-   **Issues**: Please report technical bugs on GitHub. Feature requests or "how-to" questions regarding ban avoidance will be closed.
+-   **Contributions**: Pull Requests are welcome (See `CONTRIBUTING.md` if available).
+
+---
+
+## 🛑 Final Disclaimer
+
+**By downloading, compiling, or running this software, you acknowledge that you understand the risks involved in automating WhatsApp and agree to hold the authors and contributors harmless from any damages or liabilities.**
