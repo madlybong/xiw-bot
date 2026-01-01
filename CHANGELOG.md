@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.4] - 2026-01-01
+
+### Security & Reliability (Hardening)
+- **WhatsApp Auth**: Migrated from single JSON blob to granular SQL tables (`wa_auth_creds`, `wa_auth_keys`) for atomic, crash-proof session storage.
+- **Resilience**: Implemented Exponential Backoff for reconnection logic (prevents IP bans during outages).
+- **Process Lifecycle**: Added Graceful Shutdown (SIGTERM/SIGINT) to close sessions cleanly.
+- **Bot Defense**: Updated Browser Fingerprint to standard Linux/Chrome to reduce ban rate.
+- **Logic**: Intelligent handling of disconnect reasons (re-QR on 401, retry on 515).
+
 ## [1.3.3] - 2025-12-27
 
 ### Added

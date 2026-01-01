@@ -14,6 +14,9 @@ interface SessionData {
     status: 'connecting' | 'connected' | 'disconnected';
     lastConnectionUpdate?: Partial<ConnectionState>;
     user?: { name?: string; id: string };
+    retryCount: number; // [Phase 2]
+    reconnectTimer?: ReturnType<typeof setTimeout>;
+    firstQrTime?: number; // [Phase 4]
 }
 
 let cachedVersion: { version: [number, number, number], isLatest: boolean } | null = null;
@@ -24,7 +27,6 @@ const getWaVersion = async () => {
         cachedVersion = { version, isLatest };
         return cachedVersion;
     } catch (e) {
-        // Fallback to a recent known version if fetch fails
         return { version: [2, 3000, 1015901307] as [number, number, number], isLatest: false };
     }
 };
@@ -34,10 +36,19 @@ const sessions = new Map<string, SessionData>();
 export const waManager = {
     getSession: (id: string) => sessions.get(id),
 
-    startSession: async (id: string) => {
+    stopAll: async () => {
+        for (const id of sessions.keys()) {
+            await waManager.deleteSession(id);
+        }
+    },
+
+    startSession: async (id: string, retryCount = 0) => {
+        // If already connected, return
         if (sessions.has(id)) {
             const s = sessions.get(id)!;
             if (s.status === 'connected') return s;
+            // If connecting, maybe let it be?
+            // But if we are retrying, we might need to overwrite.
         }
 
         const { state, saveCreds } = await useSQLiteAuthState(id);
@@ -49,22 +60,17 @@ export const waManager = {
         const logStream = new Writable({
             write(chunk, encoding, callback) {
                 const str = chunk.toString();
-                process.stdout.write(str); // Keep console output
+                process.stdout.write(str);
 
                 lineBuffer += str;
                 const lines = lineBuffer.split('\n');
-
-                // The last element is either empty (if str ended with \n) or a partial line
                 lineBuffer = lines.pop() || '';
-
                 for (const line of lines) {
                     if (!line.trim()) continue;
                     try {
                         const logObj = JSON.parse(line);
                         logBus.publish(id, logObj);
-                    } catch (e) {
-                        // Ignore non-JSON lines (e.g. standard console logs mixed in)
-                    }
+                    } catch (e) { }
                 }
                 callback();
             }
@@ -75,7 +81,7 @@ export const waManager = {
             auth: state,
             printQRInTerminal: false,
             logger: pino({ level: 'debug' }, logStream) as any,
-            browser: ['XiW Bot', 'Chrome', '125.0.0.0'], // Proper identification
+            browser: ['Ubuntu', 'Chrome', '125.0.0.0'], // [Phase 3] Standardized Fingerprint
             connectTimeoutMs: 60_000,
             defaultQueryTimeoutMs: 60_000,
             keepAliveIntervalMs: 10_000,
@@ -86,25 +92,27 @@ export const waManager = {
             generateHighQualityLinkPreview: true
         });
 
+        // Preserve retry count if passing from recursive call, or init
         const sessionData: SessionData = {
             socket: sock,
             qr: null,
-            status: 'connecting'
+            status: 'connecting',
+            retryCount: retryCount,
+            firstQrTime: undefined
         };
         sessions.set(id, sessionData);
 
         sock.ev.on('creds.update', saveCreds);
 
         // [MPE] Track Inbound for 24h Window
-        sock.ev.on('messages.upsert', (m) => {
+        sock.ev.on('messages.upsert', (m: any) => {
             if (m.type !== 'notify') return;
             for (const msg of m.messages) {
                 if (!msg.key.fromMe && msg.key.remoteJid && !msg.key.remoteJid.includes('@g.us')) {
                     const phone = waManager.formatJid(msg.key.remoteJid).replace('@s.whatsapp.net', '').replace(/\D/g, '');
                     try {
-                        // Upsert Contact to start window
                         db.query(`
-                            INSERT INTO contacts (phone, name, source, last_inbound_at) 
+                            INSERT INTO contacts (phone, name, source, last_inbound_at)
                             VALUES ($p, $p, 'auto', CURRENT_TIMESTAMP)
                             ON CONFLICT(phone) DO UPDATE SET last_inbound_at = CURRENT_TIMESTAMP
                         `).run({ $p: phone });
@@ -115,49 +123,93 @@ export const waManager = {
 
         sock.ev.on('connection.update', (update: Partial<ConnectionState>) => {
             const { connection, lastDisconnect, qr } = update;
-            sessionData.lastConnectionUpdate = update;
+
+            // Get current session ref (it might have been updated/replaced?)
+            const currentSession = sessions.get(id);
+            if (currentSession) currentSession.lastConnectionUpdate = update;
 
             if (qr) {
-                sessionData.qr = qr;
-                sessionData.status = 'connecting';
+                if (currentSession) {
+                    currentSession.qr = qr;
+                    currentSession.status = 'connecting';
+
+                    // [Phase 4] QR Timeout Logic
+                    if (!currentSession.firstQrTime) currentSession.firstQrTime = Date.now();
+                    const elapsed = (Date.now() - currentSession.firstQrTime) / 1000;
+                    if (elapsed > 300) { // 5 minutes max
+                        console.log(`[WA:${id}] QR Code Timeout (5 mins). Stopping session.`);
+                        waManager.deleteSession(id);
+                        db.query('UPDATE instances SET status = "stopped", last_stop_reason = "qr_timeout" WHERE id = $id').run({ $id: id });
+                        return;
+                    }
+                }
                 console.log(`[WA:${id}] QR Code generated`);
             }
 
             if (connection === 'close') {
                 const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
 
-                // Determine Reason
+                // Determine Reason & Strategy
                 let stopReason = 'unknown';
-                if (statusCode === DisconnectReason.loggedOut || statusCode === 401) stopReason = 'auth_expired';
-                else if (statusCode === DisconnectReason.connectionClosed) stopReason = 'network';
-                else stopReason = 'crash';
+                let shouldReconnect = true;
+                let delay = 3000;
+
+                // [Phase 2] Resilience Logic
+                if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
+                    stopReason = 'auth_expired';
+                    shouldReconnect = false;
+                } else if (statusCode === 428) {
+                    stopReason = 'precondition_blocked';
+                    shouldReconnect = false; // Usually fatal, requires reset
+                } else if (statusCode === 515) {
+                    // Stream error, immediate retry
+                    delay = 0;
+                } else if (statusCode === DisconnectReason.connectionClosed) {
+                    stopReason = 'network';
+                } else {
+                    stopReason = 'crash';
+                }
 
                 const errorMsg = String(lastDisconnect?.error || 'Unknown Error');
-                const shouldReconnect = statusCode !== DisconnectReason.loggedOut && statusCode !== 401;
 
-                console.log(`[WA:${id}] Connection closed. Status: ${statusCode}, Reason: ${stopReason}, Error: ${errorMsg}, Reconnecting: ${shouldReconnect}`);
+                console.log(`[WA:${id}] Closed. Code: ${statusCode}, Reason: ${stopReason}, Retry: ${currentSession?.retryCount || 0}`);
 
-                sessionData.status = 'disconnected';
-                sessionData.qr = null;
-                sessionData.user = undefined;
+                if (currentSession) {
+                    currentSession.status = 'disconnected';
+                    currentSession.qr = null;
+                    currentSession.user = undefined;
+                    currentSession.firstQrTime = undefined; // Reset
+                }
 
-                // [P1] Persist Failure Context (Transient)
                 db.query('UPDATE instances SET last_known_error = $err, last_stop_reason = $reason WHERE id = $id').run({
                     $err: errorMsg,
-                    $reason: shouldReconnect ? 'reconnecting' : stopReason, // If reconnecting, maybe not a "stop" reason, but useful context
+                    $reason: shouldReconnect ? 'reconnecting' : stopReason,
                     $id: id
                 });
 
                 if (shouldReconnect) {
-                    setTimeout(() => {
-                        waManager.startSession(id).catch(e => console.error(`[WA:${id}] Reconnect failed:`, e));
-                    }, 3000);
-                } else {
-                    console.log(`[WA:${id}] Session expired or logged out. Cleaning up...`);
-                    sessions.delete(id);
-                    db.query('DELETE FROM whatsapp_sessions WHERE id = $id').run({ $id: id });
+                    const nextRetry = (currentSession?.retryCount || 0) + 1;
+                    // Exponential Backoff: 2s, 4s, 8s, 16s... max 60s
+                    // 515 might force 0 delay, but we'll respect backoff if it keeps happening
+                    delay = delay === 0 ? 0 : Math.min(60000, Math.pow(2, nextRetry) * 2000); // Start at 4s
 
-                    // Final Stop State
+                    console.log(`[WA:${id}] Reconnecting in ${delay}ms... (Attempt ${nextRetry})`);
+
+                    const timer = setTimeout(() => {
+                        waManager.startSession(id, nextRetry).catch(e => console.error(`[WA:${id}] Reconnect failed:`, e));
+                    }, delay);
+
+                    if (currentSession) currentSession.reconnectTimer = timer;
+
+                } else {
+                    console.log(`[WA:${id}] Fatal disconnect. Cleaning up.`);
+                    sessions.delete(id);
+
+                    // Cleanup Auth (Legacy + New)
+                    db.query('DELETE FROM whatsapp_sessions WHERE id = $id').run({ $id: id });
+                    db.query('DELETE FROM wa_auth_creds WHERE instance_id = $id').run({ $id: id });
+                    db.query('DELETE FROM wa_auth_keys WHERE instance_id = $id').run({ $id: id });
+
                     db.query('UPDATE instances SET status = $status, last_stop_reason = $reason, last_known_error = $err WHERE id = $id').run({
                         $status: 'stopped',
                         $reason: stopReason,
@@ -167,19 +219,21 @@ export const waManager = {
                 }
             } else if (connection === 'open') {
                 console.log(`[WA:${id}] Connected`);
-                sessionData.status = 'connected';
-                sessionData.qr = null;
-                // Clear errors on success
+                if (currentSession) {
+                    currentSession.status = 'connected';
+                    currentSession.qr = null;
+                    currentSession.retryCount = 0; // Reset on success
+                    currentSession.firstQrTime = undefined;
+                    currentSession.user = {
+                        id: sock.user?.id || '',
+                        name: sock.user?.name || sock.user?.notify || undefined
+                    };
+                }
+
                 db.query('UPDATE instances SET status = $status, last_known_error = NULL, last_stop_reason = NULL WHERE id = $id').run({
                     $status: 'running',
                     $id: id
                 });
-
-                // Capture user info
-                sessionData.user = {
-                    id: sock.user?.id || '',
-                    name: sock.user?.name || sock.user?.notify || undefined
-                };
             }
         });
 
@@ -188,19 +242,25 @@ export const waManager = {
 
     deleteSession: async (id: string) => {
         const session = sessions.get(id);
-        if (session?.socket) {
-            session.socket.end(undefined);
+        if (session) {
+            if (session.reconnectTimer) clearTimeout(session.reconnectTimer);
+            if (session.socket) session.socket.end(undefined);
+            sessions.delete(id);
         }
-        sessions.delete(id);
-        // Clean DB? Maybe keep data but mark stopped?
+
+        // Full Cleanup
         db.query('DELETE FROM whatsapp_sessions WHERE id = $id').run({ $id: id });
+        db.query('DELETE FROM wa_auth_creds WHERE instance_id = $id').run({ $id: id });
+        db.query('DELETE FROM wa_auth_keys WHERE instance_id = $id').run({ $id: id });
+
         db.query('UPDATE instances SET status = "stopped", last_stop_reason = "manual", last_known_error = NULL WHERE id = $id').run({ $id: id });
     },
     formatJid: (number: string) => {
         if (!number) return '';
         if (number.includes('@s.whatsapp.net') || number.includes('@g.us')) return number;
-        // Strip non-numeric chars
         const sanitized = number.replace(/\D/g, '');
         return `${sanitized}@s.whatsapp.net`;
     }
 };
+
+

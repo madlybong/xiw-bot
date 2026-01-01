@@ -528,7 +528,7 @@ app.get('/backend/logs/:id/stream', authMiddleware, async (c) => {
 // [v1.3.3] Version Check
 app.get('/api/version', (c) => {
   return c.json({
-    version: '1.3.3',
+    version: '1.3.4',
     build_time: new Date().toISOString()
   });
 });
@@ -1103,6 +1103,16 @@ console.log(`Server starting on port ${PORT}`);
 
 // --- Audit Logs Export ---
 // (Already defined above, but ensuring cleaner log output)
+
+// [Phase 4] Lifecycle / Graceful Shutdown
+const shutdown = async () => {
+  console.log('[System] Shutting down...');
+  await waManager.stopAll();
+  console.log('[System] All sessions stopped.');
+  process.exit(0);
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 export default {
   port: PORT,

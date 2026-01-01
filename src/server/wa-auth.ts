@@ -1,31 +1,60 @@
 import { proto } from '@whiskeysockets/baileys';
 import { BufferJSON, initAuthCreds } from '@whiskeysockets/baileys';
+import type { AuthenticationCreds, AuthenticationState } from '@whiskeysockets/baileys';
 import db from './db';
 
-export const useSQLiteAuthState = async (sessionId: string) => {
-    const saveCreds = async () => {
-        const fullData = JSON.stringify({ creds, keys }, BufferJSON.replacer);
-        const exists = db.query('SELECT 1 FROM whatsapp_sessions WHERE id = $id').get({ $id: sessionId });
-        if (exists) {
-            db.query('UPDATE whatsapp_sessions SET data = $data, updated_at = CURRENT_TIMESTAMP WHERE id = $id').run({ $id: sessionId, $data: fullData });
-        } else {
-            db.query('INSERT INTO whatsapp_sessions (id, data) VALUES ($id, $data)').run({ $id: sessionId, $data: fullData });
+const TABLE_CREDS = 'wa_auth_creds';
+const TABLE_KEYS = 'wa_auth_keys';
+
+export const useSQLiteAuthState = async (sessionId: string): Promise<{ state: AuthenticationState, saveCreds: () => Promise<void> }> => {
+
+    // 1. Try to migrate from legacy blob if needed
+    const existingCreds = db.query(`SELECT 1 FROM ${TABLE_CREDS} WHERE instance_id = ?`).get(sessionId);
+    if (!existingCreds) {
+        const legacy = db.query('SELECT data FROM whatsapp_sessions WHERE id = ?').get(sessionId) as { data: string } | null;
+        if (legacy && legacy.data) {
+            console.log(`[Auth] Migrating session ${sessionId} to new schema...`);
+            try {
+                const parsed = JSON.parse(legacy.data, BufferJSON.reviver);
+                const creds = parsed.creds;
+                const keys = parsed.keys;
+
+                const tx = db.transaction(() => {
+                    // Save Creds
+                    db.run(`INSERT INTO ${TABLE_CREDS} (instance_id, creds) VALUES (?, ?)`, [sessionId, JSON.stringify(creds, BufferJSON.replacer)]);
+
+                    // Save Keys
+                    for (const type in keys) {
+                        for (const id in keys[type]) {
+                            const val = keys[type][id];
+                            db.run(`INSERT INTO ${TABLE_KEYS} (instance_id, type, key_id, value) VALUES (?, ?, ?, ?)`,
+                                [sessionId, type, id, JSON.stringify(val, BufferJSON.replacer)]);
+                        }
+                    }
+                });
+                tx();
+                console.log(`[Auth] Migration for ${sessionId} successful.`);
+            } catch (e) {
+                console.error(`[Auth] Migration failed for ${sessionId}`, e);
+            }
         }
-    };
+    }
 
-    // Load existing session or init new one
-    const result = db.query('SELECT data FROM whatsapp_sessions WHERE id = $id').get({ $id: sessionId }) as { data: string } | null;
+    // 2. Load Creds
+    let creds: AuthenticationCreds;
+    const credsRow = db.query(`SELECT creds FROM ${TABLE_CREDS} WHERE instance_id = ?`).get(sessionId) as { creds: string } | null;
 
-    let creds;
-    let keys: any = {};
-
-    if (result && result.data) {
-        const parsed = JSON.parse(result.data, BufferJSON.reviver);
-        creds = parsed.creds || initAuthCreds();
-        keys = parsed.keys || {};
+    if (credsRow) {
+        creds = JSON.parse(credsRow.creds, BufferJSON.reviver);
     } else {
         creds = initAuthCreds();
     }
+
+    // 3. Define saveCreds
+    const saveCreds = async () => {
+        const json = JSON.stringify(creds, BufferJSON.replacer);
+        db.run(`INSERT OR REPLACE INTO ${TABLE_CREDS} (instance_id, creds) VALUES (?, ?)`, [sessionId, json]);
+    };
 
     return {
         state: {
@@ -33,42 +62,45 @@ export const useSQLiteAuthState = async (sessionId: string) => {
             keys: {
                 get: (type: string, ids: string[]) => {
                     const data: any = {};
-                    for (const id of ids) {
-                        // In a real optimized version, we might store keys in a separate table
-                        // For simplicity, we are storing the entire massive state object in one row JSON
-                        // This might be slow for huge sessions but fine for single-file bot
-                        if (keys[type] && keys[type][id]) {
-                            data[id] = keys[type][id];
-                        }
+                    if (ids.length === 0) return data;
+
+                    // SQLite variable limit safety check
+                    const rows = [];
+                    const CHUNK_SIZE = 50;
+
+                    for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+                        const chunk = ids.slice(i, i + CHUNK_SIZE);
+                        const placeholders = chunk.map(() => '?').join(',');
+                        const result = db.query(`SELECT key_id, value FROM ${TABLE_KEYS} WHERE instance_id = ? AND type = ? AND key_id IN (${placeholders})`)
+                            .all(sessionId, type, ...chunk) as { key_id: string, value: string }[];
+                        rows.push(...result);
                     }
+
+                    rows.forEach(row => {
+                        data[row.key_id] = JSON.parse(row.value, BufferJSON.reviver);
+                    });
+
                     return data;
                 },
                 set: (data: any) => {
-                    for (const type in data) {
-                        keys[type] = keys[type] || {};
-                        Object.assign(keys[type], data[type]);
-                    }
-                    saveState();
+                    const tx = db.transaction(() => {
+                        for (const type in data) {
+                            for (const id in data[type]) {
+                                const val = data[type][id];
+                                if (val === null || val === undefined) {
+                                    db.run(`DELETE FROM ${TABLE_KEYS} WHERE instance_id = ? AND type = ? AND key_id = ?`, [sessionId, type, id]);
+                                } else {
+                                    const str = JSON.stringify(val, BufferJSON.replacer);
+                                    db.run(`INSERT OR REPLACE INTO ${TABLE_KEYS} (instance_id, type, key_id, value) VALUES (?, ?, ?, ?)`,
+                                        [sessionId, type, id, str]);
+                                }
+                            }
+                        }
+                    });
+                    tx();
                 }
             }
         },
         saveCreds
     };
-
-    async function saveState() {
-        // We trigger save on every key update? accessible via the return object
-        // Actually Baileys calls saveCreds separately.
-        // For keys, we need to merge them into our memory state and then persist completely on 'saveCreds' call usually?
-        // OR we persist periodically.
-        // Given Baileys architecture, we will implement a basic "save everything" approach
-        // But wait, the Keys 'set' method is synchronous usually in the interface but we can do async writes.
-
-        const fullData = JSON.stringify({ creds, keys }, BufferJSON.replacer);
-        const exists = db.query('SELECT 1 FROM whatsapp_sessions WHERE id = $id').get({ $id: sessionId });
-        if (exists) {
-            db.query('UPDATE whatsapp_sessions SET data = $data, updated_at = CURRENT_TIMESTAMP WHERE id = $id').run({ $id: sessionId, $data: fullData });
-        } else {
-            db.query('INSERT INTO whatsapp_sessions (id, data) VALUES ($id, $data)').run({ $id: sessionId, $data: fullData });
-        }
-    }
 };

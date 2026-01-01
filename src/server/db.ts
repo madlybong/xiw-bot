@@ -151,6 +151,29 @@ const safeMigrations = [
         if (!e.message.includes('duplicate column')) throw e;
       }
     }
+  },
+  {
+    version: 2,
+    name: 'Create auth tables for hardening',
+    up: (d: Database) => {
+      d.run(`
+          CREATE TABLE IF NOT EXISTS wa_auth_creds (
+            instance_id TEXT PRIMARY KEY,
+            creds TEXT NOT NULL
+          );
+        `);
+      d.run(`
+          CREATE TABLE IF NOT EXISTS wa_auth_keys (
+            instance_id TEXT NOT NULL,
+            type TEXT NOT NULL,
+            key_id TEXT NOT NULL,
+            value TEXT NOT NULL,
+            PRIMARY KEY (instance_id, type, key_id)
+          );
+        `);
+      // Index for performance
+      d.run('CREATE INDEX IF NOT EXISTS idx_wa_keys_lookup ON wa_auth_keys(instance_id, type);');
+    }
   }
 ];
 
