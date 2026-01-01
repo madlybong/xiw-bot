@@ -528,7 +528,7 @@ app.get('/backend/logs/:id/stream', authMiddleware, async (c) => {
 // [v1.3.3] Version Check
 app.get('/api/version', (c) => {
   return c.json({
-    version: '1.3.4',
+    version: '1.3.5',
     build_time: new Date().toISOString()
   });
 });

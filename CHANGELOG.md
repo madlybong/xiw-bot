@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.5] - 2026-01-02
+
+### Fixed
+- **UI**: Added global fetch interceptor to automatically logout users when the session token expires (401/403).
+- **UI**: Fixed a regression in version display in the navigation drawer.
+
 ## [1.3.4] - 2026-01-01
 
 ### Security & Reliability (Hardening)

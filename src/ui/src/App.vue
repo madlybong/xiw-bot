@@ -34,15 +34,7 @@ const checkAuth = () => {
   auth.value = !!localStorage.getItem('token');
 };
 
-const fetchVersion = async () => {
-  if (auth.value) {
-    try {
-      const res = await fetch('/api/health');
-      const data = await res.json();
-      version.value = data.version;
-    } catch (e) { }
-  }
-}
+const appVersion = __APP_VERSION__;
 
 const toggleTheme = () => {
   const newVal = theme.global.name.value === 'dark' ? 'light' : 'dark';
@@ -57,9 +49,39 @@ const logout = () => {
   router.push('/login');
 };
 
+const verifySession = async () => {
+  if (!auth.value) return;
+  try {
+    // Proactively check validity
+    const res = await fetch('/api/wa/me', {
+       headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    if (res.status === 401 || res.status === 403) {
+       logout();
+    }
+  } catch (e) {
+     // Network error? Ignore or retry.
+  }
+};
+
 onMounted(() => {
   checkAuth();
   checkVersionMismatch();
+  verifySession(); // Check on load
+
+  // Global Fetch Interceptor for 401s
+  const originalFetch = window.fetch;
+  window.fetch = async (...args) => {
+      const response = await originalFetch(...args);
+      if (response.status === 401) {
+          // Check if we are already dealing with login to avoid loops (though 401 usually comes from data endpoints)
+          const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
+          if (!url.includes('/auth/login')) {
+             logout();
+          }
+      }
+      return response;
+  };
 
   // Load saved theme
   const saved = localStorage.getItem('theme');
@@ -100,7 +122,7 @@ onMounted(() => {
           <v-icon size="32">mdi-robot-excited</v-icon>
         </v-avatar>
         <div class="text-subtitle-1 font-weight-bold">XiW Bot</div>
-        <div class="text-caption text-medium-emphasis">v{{ version }}</div>
+        <div class="text-caption text-medium-emphasis">v{{ appVersion }}</div>
       </div>
       <v-divider></v-divider>
 
