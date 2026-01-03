@@ -45,3 +45,27 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: release/${{ matrix.platform_dir }}/${{ matrix.binary_name }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display Structure of Downloaded Artifacts
+        run: ls -R artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/bot-server-linux/bot-server
+            artifacts/bot-server-windows/bot-server.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
