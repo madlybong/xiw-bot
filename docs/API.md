@@ -21,23 +21,36 @@ Most endpoints require authentication. You can authenticate in two ways:
 ```json
 {
   "username": "admin",
-  "password": "admin"
+  "password": "admin" // Or your set password
 }
 ```
 
 **Response:**
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1Ni..."
+  "token": "eyJhbGciOiJIUzI1Ni...",
+  "role": "admin",
+  "expiresAt": 1709...
+}
+```
+
+### Version Check (Public)
+**GET** `/api/version`
+
+**Response:**
+```json
+{
+  "version": "1.3.5",
+  "build_time": "..."
 }
 ```
 
 ---
 
-## 2. WhatsApp Management
+## 2. WhatsApp Management (Backend API)
 
 ### Create Account (Instance)
-**POST** `/api/accounts`
+**POST** `/backend/accounts`
 
 **Payload:**
 ```json
@@ -47,43 +60,33 @@ Most endpoints require authentication. You can authenticate in two ways:
 }
 ```
 
-### Get Account ID
-**GET** `/api/accounts`
-Returns list of accounts. note the `id` of the account you want to control.
+### Get Account/Instance Status
+**GET** `/backend/wa/status`
+Returns list of all instances with status.
+
+**GET** `/backend/wa/status/:id`
+Returns status for specific instance.
+
+**Response:**
+```json
+{
+  "status": "connected", // or "stopped", "connecting"
+  "qr": null, // or QR string if connecting
+  "user": { ... } // if connected
+}
+```
 
 ### Start Session
-**POST** `/api/wa/start/:id`
-Example: `/api/wa/start/1`
-
-### Get Status / QR Code
-**GET** `/api/wa/status/:id`
-
-**Response (Connecting):**
-```json
-{
-  "status": "connecting",
-  "qr": "2@...==" 
-}
-```
-*Render this QR code string (it's the raw data) using a QR library.*
-
-**Response (Connected):**
-```json
-{
-  "status": "connected",
-  "qr": null
-}
-```
+**POST** `/backend/wa/start/:id`
+Example: `/backend/wa/start/1`
 
 ### Logout / Delete Session
-**POST** `/api/wa/logout/:id`
+**POST** `/backend/wa/logout/:id`
 Disconnects and clears session data.
 
 ---
 
----
-
-## 3. Messaging
+## 3. Messaging (Public API)
 
 ### Send Text
 **POST** `/api/wa/send/text/:id`
@@ -116,7 +119,8 @@ Disconnects and clears session data.
 {
   "to": "1234567890",
   "url": "https://...",
-  "caption": "Watch!"
+  "caption": "Watch!",
+  "gifPlayback": false
 }
 ```
 
@@ -132,29 +136,43 @@ Disconnects and clears session data.
 }
 ```
 
----
-
-## 4. API Token Management
-
-### List Tokens
-**GET** `/api/tokens`
-
-### Generate Token
-**POST** `/api/tokens`
+### Send Location
+**POST** `/api/wa/send/location/:id`
 
 **Payload:**
 ```json
 {
-  "name": "Zapier Integration"
+  "to": "1234567890",
+  "latitude": 24.123,
+  "longitude": 55.123,
+  "address": "My Location"
 }
 ```
 
-**Response:**
+---
+
+## 4. API Token Management (Backend API)
+
+### List Tokens
+**GET** `/backend/tokens`
+
+### Generate Token
+**POST** `/backend/tokens`
+
+**Payload:**
 ```json
 {
-  "token": "xiw_..."
+  "name": "Zapier Integration",
+  "userId": 1,
+  "instanceIds": [1, 2]
 }
 ```
 
 ### Revoke Token
-**DELETE** `/api/tokens/:id`
+**DELETE** `/backend/tokens/:id`
+
+---
+
+## 5. Me / Identity
+**GET** `/api/wa/me`
+Returns current authenticated user details and assigned instances.

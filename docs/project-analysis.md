@@ -6,7 +6,7 @@ This report provides a deep technical breakdown of the **xiw-bot-app** project. 
 
 ### A. XIW-BOT-APP (The Runtime)
 **Repository**: [https://github.com/madlybong/xiw-bot.git](https://github.com/madlybong/xiw-bot.git)  
-**Version**: 1.3.4
+**Version**: 1.3.5
 **Description**: Single-file distributable WhatsApp Bot Platform (Server + UI).
 
 | Component | Technology | Version | Purpose |
@@ -16,7 +16,7 @@ This report provides a deep technical breakdown of the **xiw-bot-app** project. 
 | **Frontend** | **Vue 3** + **Vuetify** | (Standard Theme) | Mission Control UI |
 | **Database** | **SQLite** | Native (`bun:sqlite`) | Embedded Persistence |
 | **Whatsapp** | **@whiskeysockets/baileys** | `^6.7.9` | Socket-based Protocol Library |
-| **Logging** | **Pino** | `^9.x` | Structured Logging (Streamed to UI) |
+| **Logging** | **Pino** | `^10.1.0` | Structured Logging (Streamed to UI) |
 
 
 ---
@@ -124,7 +124,7 @@ This report provides a deep technical breakdown of the **xiw-bot-app** project. 
 ## 6. Development Notes
 
 - **Run Command**: `bun run dev` (Runs Server + UI concurrently).
-- **Build**: `bun run build` (Builds UI to `dist`, compiles server to `xiw-bot-app.exe`).
+- **Build**: `bun run build` (Builds UI to `dist`, compiles server to `bot-server.exe` (Windows) or `bot-server`).
 - **Config**: `vite.config.ts` has Proxy rules mapping `/api` and `/backend` to `localhost:3000`. Proxy timeouts are disabled for SSE support.
 
 ## 7. Deployment Workflow

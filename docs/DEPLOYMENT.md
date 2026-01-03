@@ -3,67 +3,71 @@
 ## Prerequisites
 -   **Target OS**: Windows (Server 2016+) or Linux (Ubuntu 20.04+).
 -   **Files Required**:
-    -   `bot-server.exe` (from `bin/`)
-    -   `public.key` (MUST be in the same folder as the .exe)
+    -   `bot-server.exe` (Windows) or `bot-server` (Linux) - Found in `bin/` after build.
+    -   `bot-server.sqlite` (Will be created automatically if missing).
 
 ## 1. Prepare Release
-Run the build command to generate the binary and copy the public key:
+Run the build command to generate the binary:
 ```bash
 bun run build
+// Output: bin/bot-server (and .exe)
 ```
-This creates/updates the `bin` folder with `bot-server.exe` and `public.key`.
 
-## 2. Server Setup (First Time)
-1.  **Copy Files**: Transfer the entire content of the `bin` folder to the server (e.g., `C:\xiw-bot\`).
-2.  **Generate License**:
-    On your dev machine, generate a license for the client:
-    ```bash
-    bun run scripts/gen-license.ts --client="Client Name" --expires="2025-12-31" --wa=5 --agents=2
-    ```
-3.  **Set Environment Variable**:
-    You must set `XIWBOT_LICENSE` before running the bot.
-
+## 2. Server Setup
+1.  **Transfer Files**: Copy the `bot-server` binary to your server (e.g., `C:\xiw-bot\` or `/opt/xiw-bot/`).
+2.  **Initialize Admin User**:
+    run the binary with admin flags to create your initial admin account:
+    
     **Windows (PowerShell)**:
     ```powershell
-    $env:XIWBOT_LICENSE = "XIWBOT.eyJ..."
-    .\bot-server.exe
-    ```
-
-    **Windows (CMD)**:
-    ```cmd
-    set XIWBOT_LICENSE=XIWBOT.eyJ...
-    bot-server.exe
+    .\bot-server.exe --admin-user "admin" --admin-password "Start123!"
     ```
 
     **Linux**:
     ```bash
-    XIWBOT_LICENSE="XIWBOT.eyJ..." ./bot-server
+    ./bot-server --admin-user "admin" --admin-password "Start123!"
     ```
+    *This creates the user in the SQLite DB and exits.*
+
+3.  **Run the Server**:
+    Simply run the binary to start the server.
+    ```bash
+    ./bot-server
+    ```
+    *Server listens on port 3000 by default (set `SERVER_PORT` env var to change).*
 
 ## 3. Persistent Deployment (Recommended)
 
-Since version 1.0.0, the release package includes automated scripts for service management.
-
 ### Windows Service
-1.  Open the distributed `dist` folder.
-2.  Right-click `install_service.bat` and select **Run as Administrator**.
-3.  The script will verify admin rights, install the service, and start it.
-4.  Check status: `sc query XiWBot_<clientname>`
+Use a tool like **NSSM** (Non-Sucking Service Manager) or creating a scheduled task.
+1.  Download NSSM.
+2.  `nssm install XiWBot "C:\xiw-bot\bot-server.exe"`
+3.  `nssm start XiWBot`
 
 ### Linux (Systemd)
-1.  Upload the `dist` folder to the server.
-2.  Set executable permissions:
-    ```bash
-    chmod +x *.sh *.exe
-    ```
-3.  Run the installer:
-    ```bash
-    sudo ./install_service.sh
-    ```
-4.  The script will check for root, create a systemd unit, and start the service.
-5.  Check status: `sudo systemctl status <service_name>`
+Create a unit file `/etc/systemd/system/xiw-bot.service`:
+```ini
+[Unit]
+Description=XiW Bot Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/xiw-bot
+ExecStart=/opt/xiw-bot/bot-server
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+Then enable and start:
+```bash
+sudo systemctl enable xiw-bot
+sudo systemctl start xiw-bot
+```
 
 ## Troubleshooting
--   **"Public key not found"**: Ensure `public.key` is in the same directory as the executable.
--   **"License expired"**: Generate a new license with a future date and update the environment variable.
--   **"Machine Mismatch"**: The license was bound to a different machine. Generate a new license for the new server (machine binding is soft, so it likely won't crash, but will show warnings).
+-   **"Port in use"**: Check if another process is using port 3000.
+-   **"Database Locked"**: Ensure only one instance of the server is accessing the sqlite file.
+
