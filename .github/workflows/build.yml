@@ -15,8 +15,12 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact_name: bot-server-linux
+            platform_dir: linux
+            binary_name: bot-server
           - os: windows-latest
-            artifact_name: bot-server-windows.exe
+            artifact_name: bot-server-windows
+            platform_dir: windows
+            binary_name: bot-server.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -27,31 +31,17 @@ jobs:
           bun-version: latest
 
       - name: Install Dependencies
-        run: |
-          bun install
-          cd src/ui && bun install
+        run: bun install
 
-      # [CRITICAL] This single command enforces the full pipeline:
-      # 1. build:ui (Vite build)
-      # 2. embed (Embed assets)
-      # 3. build:server (Compile binary)
+      # Using build.sh to ensure cross-platform consistency
       - name: Build Application
-        run: bun run build
+        run: bash build.sh
 
-      - name: Verify UI Output
-        run: ls src/ui/dist
-        if: matrix.os == 'ubuntu-latest'
-
-      - name: Prepare Artifact (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: mv bin/bot-server ${{ matrix.artifact_name }}
-
-      - name: Prepare Artifact (Windows)
-        if: matrix.os == 'windows-latest'
-        run: mv bin/bot-server.exe ${{ matrix.artifact_name }}
+      - name: Verify Builds
+        run: ls -R release
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_name }}
+          path: release/${{ matrix.platform_dir }}/${{ matrix.binary_name }}

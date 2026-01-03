@@ -6,7 +6,7 @@ This report provides a deep technical breakdown of the **xiw-bot-app** project. 
 
 ### A. XIW-BOT-APP (The Runtime)
 **Repository**: [https://github.com/madlybong/xiw-bot.git](https://github.com/madlybong/xiw-bot.git)  
-**Version**: 1.3.5
+**Version**: 1.4.0
 **Description**: Single-file distributable WhatsApp Bot Platform (Server + UI).
 
 | Component | Technology | Version | Purpose |

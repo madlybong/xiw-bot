@@ -672,8 +672,14 @@ app.post('/api/wa/send/text/:id', authMiddleware, async (c) => {
   const policy = runMPE(c, to, 'text', { message });
   if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
 
-  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
-  await session.socket.sendMessage(jid, { text: message });
+  const jid = waManager.formatJid(to);
+  try {
+    await session.socket.sendMessage(jid, { text: message });
+  } catch (e: any) {
+    console.error(`[WA:${id}] Send Failed:`, e);
+    const status = e?.output?.statusCode || 500;
+    return c.json({ error: 'Message send failed', details: e.message }, status);
+  }
 
   const user = c.get('jwtPayload');
   logAndSave(c, user.id, 'text', to, { message });
@@ -693,11 +699,17 @@ app.post('/api/wa/send/image/:id', authMiddleware, async (c) => {
   const policy = runMPE(c, to, 'image', { url, caption });
   if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
 
-  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
-  await session.socket.sendMessage(jid, {
-    image: { url },
-    caption: caption || ''
-  });
+  const jid = waManager.formatJid(to);
+  try {
+    await session.socket.sendMessage(jid, {
+      image: { url },
+      caption: caption || ''
+    });
+  } catch (e: any) {
+    console.error(`[WA:${id}] Send Image Failed:`, e);
+    const status = e?.output?.statusCode || 500;
+    return c.json({ error: 'Image send failed', details: e.message }, status);
+  }
 
   const user = c.get('jwtPayload');
   logAndSave(c, user.id, 'image', to, { url, caption });
@@ -717,12 +729,18 @@ app.post('/api/wa/send/video/:id', authMiddleware, async (c) => {
   const policy = runMPE(c, to, 'video', { url, caption, gifPlayback });
   if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
 
-  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
-  await session.socket.sendMessage(jid, {
-    video: { url },
-    caption: caption || '',
-    gifPlayback
-  });
+  const jid = waManager.formatJid(to);
+  try {
+    await session.socket.sendMessage(jid, {
+      video: { url },
+      caption: caption || '',
+      gifPlayback
+    });
+  } catch (e: any) {
+    console.error(`[WA:${id}] Send Video Failed:`, e);
+    const status = e?.output?.statusCode || 500;
+    return c.json({ error: 'Video send failed', details: e.message }, status);
+  }
 
   const user = c.get('jwtPayload');
   logAndSave(c, user.id, 'video', to, { url, caption });
@@ -742,12 +760,18 @@ app.post('/api/wa/send/audio/:id', authMiddleware, async (c) => {
   const policy = runMPE(c, to, 'audio', { url, ptt });
   if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
 
-  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
-  await session.socket.sendMessage(jid, {
-    audio: { url },
-    mimetype: 'audio/mp4',
-    ptt: ptt || false
-  });
+  const jid = waManager.formatJid(to);
+  try {
+    await session.socket.sendMessage(jid, {
+      audio: { url },
+      mimetype: 'audio/mp4',
+      ptt: ptt || false
+    });
+  } catch (e: any) {
+    console.error(`[WA:${id}] Send Audio Failed:`, e);
+    const status = e?.output?.statusCode || 500;
+    return c.json({ error: 'Audio send failed', details: e.message }, status);
+  }
 
   const user = c.get('jwtPayload');
   logAndSave(c, user.id, 'audio', to, { url, ptt });
@@ -767,12 +791,18 @@ app.post('/api/wa/send/document/:id', authMiddleware, async (c) => {
   const policy = runMPE(c, to, 'document', { url, filename, mimetype });
   if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
 
-  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
-  await session.socket.sendMessage(jid, {
-    document: { url },
-    fileName: filename,
-    mimetype
-  });
+  const jid = waManager.formatJid(to);
+  try {
+    await session.socket.sendMessage(jid, {
+      document: { url },
+      fileName: filename,
+      mimetype
+    });
+  } catch (e: any) {
+    console.error(`[WA:${id}] Send Document Failed:`, e);
+    const status = e?.output?.statusCode || 500;
+    return c.json({ error: 'Document send failed', details: e.message }, status);
+  }
 
   const user = c.get('jwtPayload');
   logAndSave(c, user.id, 'document', to, { url, filename });
@@ -792,10 +822,16 @@ app.post('/api/wa/send/location/:id', authMiddleware, async (c) => {
   const policy = runMPE(c, to, 'location', { latitude, longitude, address });
   if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
 
-  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
-  await session.socket.sendMessage(jid, {
-    location: { degreesLatitude: latitude, degreesLongitude: longitude, address: address }
-  });
+  const jid = waManager.formatJid(to);
+  try {
+    await session.socket.sendMessage(jid, {
+      location: { degreesLatitude: latitude, degreesLongitude: longitude, address: address }
+    });
+  } catch (e: any) {
+    console.error(`[WA:${id}] Send Location Failed:`, e);
+    const status = e?.output?.statusCode || 500;
+    return c.json({ error: 'Location send failed', details: e.message }, status);
+  }
 
   const user = c.get('jwtPayload');
   logAndSave(c, user.id, 'location', to, { latitude, longitude, address });
@@ -815,18 +851,24 @@ app.post('/api/wa/send/template/:id', authMiddleware, async (c) => {
   const policy = runMPE(c, to, 'template', { templateName, variables });
   if (!policy.allowed) return c.json({ error: policy.reason }, policy.code as any || 403);
 
-  const jid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+  const jid = waManager.formatJid(to);
 
   // Fetch content for hydration (Simplistic hydration for now)
   const template = db.query('SELECT content FROM templates WHERE name = $name').get({ $name: templateName }) as any;
-  let text = template.content;
+  let text = template?.content || '';
   if (variables && Array.isArray(variables)) {
     variables.forEach((v, i) => {
       text = text.replace(`{{${i + 1}}}`, v);
     });
   }
 
-  await session.socket.sendMessage(jid, { text }); // Sends as text for now, but passed policy as template
+  try {
+    await session.socket.sendMessage(jid, { text }); // Sends as text for now, but passed policy as template
+  } catch (e: any) {
+    console.error(`[WA:${id}] Send Template Failed:`, e);
+    const status = e?.output?.statusCode || 500;
+    return c.json({ error: 'Template send failed', details: e.message }, status);
+  }
 
   const user = c.get('jwtPayload');
   logAndSave(c, user.id, 'template', to, { templateName, variables });
@@ -1059,6 +1101,26 @@ app.use('*', async (c, next) => {
 
   await next();
 });
+// [Auto-Start] Resume sessions that have credentials
+const resumeSessions = async () => {
+  console.log('[System] Resuming active sessions...');
+  // Find instances that have credentials in wa_auth_creds
+  // And were NOT manually stopped (optional check, but good for safety)
+  // Actually, just check if they have creds. If they do, we should probably try to connect or at least set them up.
+  // But strictly, let's look for instances that were 'running' or 'reconnecting' or just have creds.
+  const rows = db.query(`
+    SELECT DISTINCT i.id 
+    FROM instances i
+    JOIN wa_auth_creds c ON i.id = c.instance_id
+    WHERE i.status != 'stopped' OR i.last_stop_reason = 'server_shutdown'
+  `).all() as { id: number }[];
+
+  for (const row of rows) {
+    console.log(`[System] Auto-starting instance ${row.id}`);
+    waManager.startSession(String(row.id));
+  }
+};
+resumeSessions();
 
 // CLI Admin Management
 const args = Bun.argv;
@@ -1107,7 +1169,22 @@ console.log(`Server starting on port ${PORT}`);
 // [Phase 4] Lifecycle / Graceful Shutdown
 const shutdown = async () => {
   console.log('[System] Shutting down...');
-  await waManager.stopAll();
+  // Force update status to 'reconnecting' so they auto-start on next boot (if we had auto-start logic)
+  // Or just leave them as is? If we set to 'stopped', they won't restart.
+  // Better: Set to 'reconnecting' or just don't touch status if we want them to persist?
+  // Standard practice: If server stops, instances effectively stop. But on restart, we might want to resume 'running' ones.
+  // For now, let's MARK them as 'reconnecting' so we know they didn't crash or logout.
+  // Actually, wait. waManager.stopAll() calls deleteSession which sets to 'stopped'. We should override that behavior.
+
+  // Custom shutdown for sessions to preserve state
+  const sessions = waManager.getSessionKeys(); // Need to expose this
+  for (const id of sessions) {
+    const sess = waManager.getSession(id);
+    if (sess?.socket) sess.socket.end(undefined);
+  }
+  // Bulk update DB
+  db.query("UPDATE instances SET status = 'stopped', last_stop_reason = 'server_shutdown' WHERE status = 'running'").run();
+
   console.log('[System] All sessions stopped.');
   process.exit(0);
 };

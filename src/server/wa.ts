@@ -35,6 +35,7 @@ const sessions = new Map<string, SessionData>();
 
 export const waManager = {
     getSession: (id: string) => sessions.get(id),
+    getSessionKeys: () => Array.from(sessions.keys()),
 
     stopAll: async () => {
         for (const id of sessions.keys()) {

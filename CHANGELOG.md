@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.4.0] - 2026-01-03
+
+### Refactor (Architecture)
+- **Monorepo Migration**: Merged `src/ui` into root package. Removed nested `package.json` for a unified `node_modules` structure and simpler build process.
+- **Project Structure**: Moved specific scripts to `root/scripts` for better organization.
+- **Build System**: Introduced `build.sh` for consistent cross-platform builds (handles Git Bash, WSL, Linux).
+
+### Added
+- **Auto-Resume**: Server now automatically detects and resumes sessions that were active prior to shutdown/restart.
+- **Robust Error Handling**: Wrapped all messaging APIs with `try/catch` to prevent server crashes on socket timeouts (returns 408/500 instead of exiting).
+- **JID Sanitization**: All endpoints now sanitize phone numbers before sending to prevent malformed queries.
+
+### Changed
+- **Documentation**: Updated `API.md` and `DEPLOYMENT.md` to reflect current paths and simplified deployment (no license key required).
+- **CI**: Updated GitHub Workflow to use the new unified dependency structure.
+
 ## [1.3.5] - 2026-01-02
 
 ### Fixed
