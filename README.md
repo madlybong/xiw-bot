@@ -59,14 +59,24 @@ The system runs as a single compiled executable (Bun runtime + Hono Server + Vue
 -   A supported OS (Linux x64, Windows x64)
 -   Basic understanding of command-line tools
 
-**Running from Binary**:
+### Deployment (Recommended)
 
 1.  Download the latest release.
-2.  Run the executable:
+2.  Use the unified management script:
+    ```bash
+    chmod +x manage-service.sh bot-server
+    sudo ./manage-service.sh
+    ```
+3.  Select **Install** to set up the `xiwbot` service automatically.
+4.  Access the console at `http://localhost:3000`.
+
+### Manual Execution
+
+1.  Run the executable directly:
     ```bash
     ./bot-server
     ```
-3.  Access the console at `http://localhost:3000`.
+2.  First run will initialize the local behavior.
 4.  First run will initialize the local SQLite database.
 
 **Running from Source**:

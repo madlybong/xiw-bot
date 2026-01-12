@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.1] - 2026-01-12
+
+### Added
+- **Unified Management Script**: Introduced `manage-service.sh` for comprehensive service lifecycle management (Install, Status, Uninstall, Logs). Auto-detects user permissions.
+- **SDK Examples**: Added full Client Library examples for **Node.js**, **PHP**, and **VB.NET** in the Documentation UI.
+
+### Changed
+- **Documentation**: Complete rewrite of `API.md` and `DEPLOYMENT.md` to match v1.4.0 capabilities.
+- **Service Name**: Standardized systemd service name to `xiwbot` (previously `tdr_software_xiwbot`).
+- **UI**: Documentation page now features a "Copy & Paste" ready Client Library section.
+
 ## [1.4.0] - 2026-01-03
 
 ### Refactor (Architecture)
